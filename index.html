@@ -1,1830 +1,784 @@
-import React, { useState, useEffect, useReducer } from 'react';
-import { ChevronLeft, ChevronRight, Users, BarChart3, Timer, Target, Activity, TrendingUp, Undo2, UserPlus, Wifi, WifiOff, MapPin } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rugby Analysis System</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-// Estado inicial del partido
-const initialGameState = {
-  kicks: {
-    total: 0,
-    offensive: 0,
-    positional: 0,
-    staysIn: 0,
-    goesOut: 0,
-    cajon9: 0,
-    otherTypes: 0,
-    recovered: 0,
-    notRecovered: 0,
-    events: []
-  },
-  lineouts: {
-    own: { 
-      total: 0, 
-      won: 0, 
-      lost: 0,
-      zones: { own22: 0, middle: 0, opponent22: 0 },
-      players: { 2: 0, 4: 0, 6: 0, 8: 0 },
-      postThrow: { good: 0, regular: 0, bad: 0 },
-      maul: { effective: 0, ineffective: 0, notApplicable: 0 },
-      playerStats: {}
-    },
-    opponent: { 
-      total: 0, 
-      stolen: 0, 
-      complicated: 0,
-      zones: { own22: 0, middle: 0, opponent22: 0 }
-    },
-    kickoffs: {
-      received: 0,
-      effective: 0,
-      ineffective: 0,
-      players: {},
-      tackle: { effective: 0, ineffective: 0 },
-      pressure: { effective: 0, ineffective: 0 }
-    },
-    events: []
-  },
-  scrums: {
-    own: { 
-      total: 0, 
-      positive: 0, 
-      negative: 0,
-      entryWon: 0,
-      entryLost: 0,
-      ballUseGood: 0,
-      ballUseBad: 0,
-      turnCorrect: 0,
-      turnIncorrect: 0
-    },
-    opponent: { 
-      total: 0
-    },
-    penalties: { for: 0, against: 0 },
-    events: []
-  },
-  attack: {
-    decisions: [],
-    executions: [],
-    runs: { total: 0, effective: 0, ineffective: 0 },
-    finalDecisions: { good: 0, regular: 0, bad: 0 },
-    roles: {},
-    events: []
-  },
-  players: Array.from({length: 23}, (_, i) => ({
-    number: i + 1,
-    active: true,
-    cards: 0,
-    injured: false,
-    lineoutCatches: 0,
-    lineoutMisses: 0,
-    kickoffReceptions: 0,
-    kickoffEffective: 0
-  })),
-  history: [],
-  connectedUsers: ['Entrenador Principal']
-};
+    <script type="text/babel">
+        const { useState, useEffect, useReducer } = React;
+        const { ChevronLeft, ChevronRight, Users, BarChart3, Timer, Target, Activity, TrendingUp, Undo2, UserPlus, Wifi, WifiOff, MapPin } = lucide;
 
-// Zones del campo
-const fieldZones = [
-  { id: 'own22', name: 'Nuestros 22', color: 'bg-red-100' },
-  { id: 'middle', name: 'Medio Campo', color: 'bg-yellow-100' },
-  { id: 'opponent22', name: 'Sus 22', color: 'bg-green-100' }
-];
-
-// Número de jugadores para lineout
-const lineoutPlayers = [2, 4, 6, 8];
-
-// Reducer para manejar el estado del juego
-function gameReducer(state, action) {
-  const newState = { ...state };
-  const timestamp = new Date().toISOString();
-
-  switch (action.type) {
-    case 'ADD_KICK':
-      const kickEvent = {
-        id: Date.now(),
-        timestamp,
-        type: 'kick',
-        player: action.player,
-        data: action.data
-      };
-
-      newState.kicks = {
-        ...state.kicks,
-        total: state.kicks.total + 1,
-        [action.data.kickType]: state.kicks[action.data.kickType] + 1,
-        [action.data.result]: state.kicks[action.data.result] + 1,
-        [action.data.specific]: state.kicks[action.data.specific] + 1,
-        [action.data.recovery]: state.kicks[action.data.recovery] + 1,
-        events: [...state.kicks.events, kickEvent]
-      };
-
-      newState.history = [kickEvent, ...state.history].slice(0, 20);
-      return newState;
-
-    case 'ADD_LINEOUT':
-      const lineoutEvent = {
-        id: Date.now(),
-        timestamp,
-        type: 'lineout',
-        player: action.player,
-        data: action.data
-      };
-
-      if (action.data.team === 'own') {
-        newState.lineouts = {
-          ...state.lineouts,
-          own: {
-            ...state.lineouts.own,
-            total: state.lineouts.own.total + 1,
-            [action.data.result]: state.lineouts.own[action.data.result] + 1,
-            zones: {
-              ...state.lineouts.own.zones,
-              [action.data.zone]: state.lineouts.own.zones[action.data.zone] + 1
+        // Estado inicial del partido
+        const initialGameState = {
+            kicks: {
+                total: 0,
+                offensive: 0,
+                positional: 0,
+                staysIn: 0,
+                goesOut: 0,
+                cajon9: 0,
+                otherTypes: 0,
+                recovered: 0,
+                notRecovered: 0,
+                events: []
             },
-            players: {
-              ...state.lineouts.own.players,
-              [action.data.playersUsed]: state.lineouts.own.players[action.data.playersUsed] + 1
+            lineouts: {
+                own: { 
+                    total: 0, 
+                    won: 0, 
+                    lost: 0,
+                    zones: { own22: 0, middle: 0, opponent22: 0 },
+                    players: { 2: 0, 4: 0, 6: 0, 8: 0 },
+                    postThrow: { good: 0, regular: 0, bad: 0 },
+                    maul: { effective: 0, ineffective: 0, notApplicable: 0 },
+                    playerStats: {}
+                },
+                opponent: { 
+                    total: 0, 
+                    stolen: 0, 
+                    complicated: 0,
+                    zones: { own22: 0, middle: 0, opponent22: 0 }
+                },
+                kickoffs: {
+                    received: 0,
+                    effective: 0,
+                    ineffective: 0,
+                    players: {},
+                    tackle: { effective: 0, ineffective: 0 },
+                    pressure: { effective: 0, ineffective: 0 }
+                },
+                events: []
             },
-            postThrow: {
-              ...state.lineouts.own.postThrow,
-              [action.data.postThrow]: state.lineouts.own.postThrow[action.data.postThrow] + 1
+            scrums: {
+                own: { 
+                    total: 0, 
+                    positive: 0, 
+                    negative: 0,
+                    entryWon: 0,
+                    entryLost: 0,
+                    ballUseGood: 0,
+                    ballUseBad: 0,
+                    turnCorrect: 0,
+                    turnIncorrect: 0
+                },
+                opponent: { 
+                    total: 0
+                },
+                penalties: { for: 0, against: 0 },
+                events: []
             },
-            maul: {
-              ...state.lineouts.own.maul,
-              [action.data.maul]: state.lineouts.own.maul[action.data.maul] + 1
+            attack: {
+                decisions: [],
+                executions: [],
+                runs: { total: 0, effective: 0, ineffective: 0 },
+                finalDecisions: { good: 0, regular: 0, bad: 0 },
+                roles: {},
+                events: []
             },
-            playerStats: {
-              ...state.lineouts.own.playerStats,
-              [action.player]: {
-                catches: (state.lineouts.own.playerStats[action.player]?.catches || 0) + (action.data.result === 'won' ? 1 : 0),
-                misses: (state.lineouts.own.playerStats[action.player]?.misses || 0) + (action.data.result === 'lost' ? 1 : 0)
-              }
+            players: Array.from({length: 23}, (_, i) => ({
+                number: i + 1,
+                active: true,
+                cards: 0,
+                injured: false,
+                lineoutCatches: 0,
+                lineoutMisses: 0,
+                kickoffReceptions: 0,
+                kickoffEffective: 0
+            })),
+            history: [],
+            connectedUsers: ['Entrenador Principal']
+        };
+
+        // Zones del campo
+        const fieldZones = [
+            { id: 'own22', name: 'Nuestros 22', color: 'bg-red-100' },
+            { id: 'middle', name: 'Medio Campo', color: 'bg-yellow-100' },
+            { id: 'opponent22', name: 'Sus 22', color: 'bg-green-100' }
+        ];
+
+        // Número de jugadores para lineout
+        const lineoutPlayers = [2, 4, 6, 8];
+
+        // Reducer para manejar el estado del juego
+        function gameReducer(state, action) {
+            const newState = { ...state };
+            const timestamp = new Date().toISOString();
+
+            switch (action.type) {
+                case 'ADD_KICK':
+                    const kickEvent = {
+                        id: Date.now(),
+                        timestamp,
+                        type: 'kick',
+                        player: action.player,
+                        data: action.data
+                    };
+
+                    newState.kicks = {
+                        ...state.kicks,
+                        total: state.kicks.total + 1,
+                        [action.data.kickType]: state.kicks[action.data.kickType] + 1,
+                        [action.data.result]: state.kicks[action.data.result] + 1,
+                        [action.data.specific]: state.kicks[action.data.specific] + 1,
+                        [action.data.recovery]: state.kicks[action.data.recovery] + 1,
+                        events: [...state.kicks.events, kickEvent]
+                    };
+
+                    newState.history = [kickEvent, ...state.history].slice(0, 20);
+                    return newState;
+
+                case 'ADD_LINEOUT':
+                    const lineoutEvent = {
+                        id: Date.now(),
+                        timestamp,
+                        type: 'lineout',
+                        player: action.player,
+                        data: action.data
+                    };
+
+                    if (action.data.team === 'own') {
+                        newState.lineouts = {
+                            ...state.lineouts,
+                            own: {
+                                ...state.lineouts.own,
+                                total: state.lineouts.own.total + 1,
+                                [action.data.result]: state.lineouts.own[action.data.result] + 1,
+                                zones: {
+                                    ...state.lineouts.own.zones,
+                                    [action.data.zone]: state.lineouts.own.zones[action.data.zone] + 1
+                                },
+                                players: {
+                                    ...state.lineouts.own.players,
+                                    [action.data.playersUsed]: state.lineouts.own.players[action.data.playersUsed] + 1
+                                },
+                                postThrow: {
+                                    ...state.lineouts.own.postThrow,
+                                    [action.data.postThrow]: state.lineouts.own.postThrow[action.data.postThrow] + 1
+                                },
+                                maul: {
+                                    ...state.lineouts.own.maul,
+                                    [action.data.maul]: state.lineouts.own.maul[action.data.maul] + 1
+                                },
+                                playerStats: {
+                                    ...state.lineouts.own.playerStats,
+                                    [action.player]: {
+                                        catches: (state.lineouts.own.playerStats[action.player]?.catches || 0) + (action.data.result === 'won' ? 1 : 0),
+                                        misses: (state.lineouts.own.playerStats[action.player]?.misses || 0) + (action.data.result === 'lost' ? 1 : 0)
+                                    }
+                                }
+                            },
+                            events: [...state.lineouts.events, lineoutEvent]
+                        };
+                    } else {
+                        newState.lineouts = {
+                            ...state.lineouts,
+                            opponent: {
+                                ...state.lineouts.opponent,
+                                total: state.lineouts.opponent.total + 1,
+                                [action.data.result]: state.lineouts.opponent[action.data.result] + 1,
+                                zones: {
+                                    ...state.lineouts.opponent.zones,
+                                    [action.data.zone]: state.lineouts.opponent.zones[action.data.zone] + 1
+                                }
+                            },
+                            events: [...state.lineouts.events, lineoutEvent]
+                        };
+                    }
+
+                    newState.history = [lineoutEvent, ...state.history].slice(0, 20);
+                    return newState;
+
+                case 'ADD_KICKOFF':
+                    const kickoffEvent = {
+                        id: Date.now(),
+                        timestamp,
+                        type: 'kickoff',
+                        player: action.player,
+                        data: action.data
+                    };
+
+                    newState.lineouts = {
+                        ...state.lineouts,
+                        kickoffs: {
+                            ...state.lineouts.kickoffs,
+                            received: state.lineouts.kickoffs.received + 1,
+                            [action.data.effectiveness]: state.lineouts.kickoffs[action.data.effectiveness] + 1,
+                            players: {
+                                ...state.lineouts.kickoffs.players,
+                                [action.player]: (state.lineouts.kickoffs.players[action.player] || 0) + 1
+                            },
+                            [action.data.tackle]: state.lineouts.kickoffs[action.data.tackle] + 1,
+                            [action.data.pressure]: state.lineouts.kickoffs[action.data.pressure] + 1
+                        },
+                        events: [...state.lineouts.events, kickoffEvent]
+                    };
+
+                    newState.players = state.players.map(player => 
+                        player.number === action.player
+                            ? {
+                                ...player,
+                                kickoffReceptions: player.kickoffReceptions + 1,
+                                kickoffEffective: player.kickoffEffective + (action.data.effectiveness === 'effective' ? 1 : 0)
+                            }
+                            : player
+                    );
+
+                    newState.history = [kickoffEvent, ...state.history].slice(0, 20);
+                    return newState;
+
+                case 'ADD_SCRUM':
+                    const scrumEvent = {
+                        id: Date.now(),
+                        timestamp,
+                        type: 'scrum',
+                        player: action.player,
+                        data: action.data
+                    };
+
+                    if (action.data.team === 'own') {
+                        newState.scrums = {
+                            ...state.scrums,
+                            own: {
+                                ...state.scrums.own,
+                                total: state.scrums.own.total + 1,
+                                [action.data.result]: state.scrums.own[action.data.result] + 1,
+                                [action.data.entry]: state.scrums.own[action.data.entry] + 1,
+                                [action.data.ballUse]: state.scrums.own[action.data.ballUse] + 1,
+                                [action.data.turn]: state.scrums.own[action.data.turn] + 1
+                            },
+                            events: [...state.scrums.events, scrumEvent]
+                        };
+                    } else {
+                        newState.scrums = {
+                            ...state.scrums,
+                            opponent: {
+                                ...state.scrums.opponent,
+                                total: state.scrums.opponent.total + 1
+                            },
+                            events: [...state.scrums.events, scrumEvent]
+                        };
+                    }
+
+                    if (action.data.penalty) {
+                        newState.scrums = {
+                            ...newState.scrums,
+                            penalties: {
+                                ...newState.scrums.penalties,
+                                [action.data.penalty]: newState.scrums.penalties[action.data.penalty] + 1
+                            }
+                        };
+                    }
+
+                    newState.history = [scrumEvent, ...state.history].slice(0, 20);
+                    return newState;
+
+                case 'ADD_ATTACK':
+                    const attackEvent = {
+                        id: Date.now(),
+                        timestamp,
+                        type: 'attack',
+                        player: action.player,
+                        data: action.data
+                    };
+
+                    if (action.data.type === 'rating') {
+                        newState.attack = {
+                            ...state.attack,
+                            [action.data.category]: [...state.attack[action.data.category], action.data.rating],
+                            events: [...state.attack.events, attackEvent]
+                        };
+                    } else if (action.data.type === 'run') {
+                        newState.attack = {
+                            ...state.attack,
+                            runs: {
+                                total: state.attack.runs.total + 1,
+                                [action.data.effectiveness]: state.attack.runs[action.data.effectiveness] + 1
+                            },
+                            events: [...state.attack.events, attackEvent]
+                        };
+                    } else if (action.data.type === 'decision') {
+                        newState.attack = {
+                            ...state.attack,
+                            finalDecisions: {
+                                ...state.attack.finalDecisions,
+                                [action.data.quality]: state.attack.finalDecisions[action.data.quality] + 1
+                            },
+                            events: [...state.attack.events, attackEvent]
+                        };
+                    } else if (action.data.type === 'role') {
+                        newState.attack = {
+                            ...state.attack,
+                            roles: {
+                                ...state.attack.roles,
+                                [action.data.role]: (state.attack.roles[action.data.role] || 0) + 1
+                            },
+                            events: [...state.attack.events, attackEvent]
+                        };
+                    }
+
+                    newState.history = [attackEvent, ...state.history].slice(0, 20);
+                    return newState;
+
+                case 'UNDO_LAST_ACTION':
+                    if (state.history.length === 0) return state;
+                    
+                    const lastEvent = state.history[0];
+                    const newHistory = state.history.slice(1);
+                    
+                    newState.history = newHistory;
+                    return newState;
+
+                case 'ADD_USER':
+                    newState.connectedUsers = [...state.connectedUsers, action.userName];
+                    return newState;
+
+                case 'RESET_GAME':
+                    return initialGameState;
+
+                default:
+                    return state;
             }
-          },
-          events: [...state.lineouts.events, lineoutEvent]
-        };
-      } else {
-        newState.lineouts = {
-          ...state.lineouts,
-          opponent: {
-            ...state.lineouts.opponent,
-            total: state.lineouts.opponent.total + 1,
-            [action.data.result]: state.lineouts.opponent[action.data.result] + 1,
-            zones: {
-              ...state.lineouts.opponent.zones,
-              [action.data.zone]: state.lineouts.opponent.zones[action.data.zone] + 1
+        }
+
+        // Componente Selector de Jugadores
+        const PlayerSelector = ({ selectedPlayer, onPlayerSelect, compact = false }) => {
+            const [showSelector, setShowSelector] = useState(false);
+
+            if (compact) {
+                return React.createElement('div', { className: 'relative' },
+                    React.createElement('button', {
+                        onClick: () => setShowSelector(!showSelector),
+                        className: `w-16 h-16 rounded-full text-white font-bold text-lg ${
+                            selectedPlayer ? 'bg-blue-600' : 'bg-gray-400'
+                        } border-2 border-white shadow-lg`
+                    }, selectedPlayer || '?'),
+                    
+                    showSelector && React.createElement('div', {
+                        className: 'absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white border-2 border-gray-200 rounded-lg shadow-xl p-4 z-50'
+                    },
+                        React.createElement('div', { className: 'grid grid-cols-5 gap-2 max-h-60 overflow-y-auto' },
+                            Array.from({length: 23}, (_, i) => i + 1).map(num =>
+                                React.createElement('button', {
+                                    key: num,
+                                    onClick: () => {
+                                        onPlayerSelect(num);
+                                        setShowSelector(false);
+                                    },
+                                    className: 'w-10 h-10 bg-blue-100 hover:bg-blue-200 rounded-full text-sm font-semibold'
+                                }, num)
+                            )
+                        )
+                    )
+                );
             }
-          },
-          events: [...state.lineouts.events, lineoutEvent]
+
+            return React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm border' },
+                React.createElement('h3', { className: 'font-semibold mb-3 text-center' }, 'Seleccionar Jugador'),
+                React.createElement('div', { className: 'grid grid-cols-5 gap-2' },
+                    Array.from({length: 23}, (_, i) => i + 1).map(num =>
+                        React.createElement('button', {
+                            key: num,
+                            onClick: () => onPlayerSelect(num),
+                            className: `w-12 h-12 rounded-full text-sm font-semibold transition-colors ${
+                                selectedPlayer === num 
+                                    ? 'bg-blue-600 text-white' 
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                            }`
+                        }, num)
+                    )
+                )
+            );
         };
-      }
 
-      newState.history = [lineoutEvent, ...state.history].slice(0, 20);
-      return newState;
-
-    case 'ADD_KICKOFF':
-      const kickoffEvent = {
-        id: Date.now(),
-        timestamp,
-        type: 'kickoff',
-        player: action.player,
-        data: action.data
-      };
-
-      newState.lineouts = {
-        ...state.lineouts,
-        kickoffs: {
-          ...state.lineouts.kickoffs,
-          received: state.lineouts.kickoffs.received + 1,
-          [action.data.effectiveness]: state.lineouts.kickoffs[action.data.effectiveness] + 1,
-          players: {
-            ...state.lineouts.kickoffs.players,
-            [action.player]: (state.lineouts.kickoffs.players[action.player] || 0) + 1
-          },
-          [action.data.tackle]: state.lineouts.kickoffs[action.data.tackle] + 1,
-          [action.data.pressure]: state.lineouts.kickoffs[action.data.pressure] + 1
-        },
-        events: [...state.lineouts.events, kickoffEvent]
-      };
-
-      // Actualizar stats del jugador
-      newState.players = state.players.map(player => 
-        player.number === action.player
-          ? {
-              ...player,
-              kickoffReceptions: player.kickoffReceptions + 1,
-              kickoffEffective: player.kickoffEffective + (action.data.effectiveness === 'effective' ? 1 : 0)
-            }
-          : player
-      );
-
-      newState.history = [kickoffEvent, ...state.history].slice(0, 20);
-      return newState;
-
-    case 'ADD_SCRUM':
-      const scrumEvent = {
-        id: Date.now(),
-        timestamp,
-        type: 'scrum',
-        player: action.player,
-        data: action.data
-      };
-
-      if (action.data.team === 'own') {
-        newState.scrums = {
-          ...state.scrums,
-          own: {
-            ...state.scrums.own,
-            total: state.scrums.own.total + 1,
-            [action.data.result]: state.scrums.own[action.data.result] + 1,
-            [action.data.entry]: state.scrums.own[action.data.entry] + 1,
-            [action.data.ballUse]: state.scrums.own[action.data.ballUse] + 1,
-            [action.data.turn]: state.scrums.own[action.data.turn] + 1
-          },
-          events: [...state.scrums.events, scrumEvent]
+        // Selector de Zona del Campo
+        const ZoneSelector = ({ selectedZone, onZoneSelect, title = "Zona del Campo" }) => {
+            return React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm' },
+                React.createElement('h3', { className: 'font-semibold mb-3 text-center' }, title),
+                React.createElement('div', { className: 'grid grid-cols-3 gap-2' },
+                    fieldZones.map(zone =>
+                        React.createElement('button', {
+                            key: zone.id,
+                            onClick: () => onZoneSelect(zone.id),
+                            className: `p-3 rounded-lg text-center transition-colors ${
+                                selectedZone === zone.id 
+                                    ? 'bg-blue-600 text-white' 
+                                    : `${zone.color} hover:bg-blue-100 text-gray-700`
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-xs font-medium' }, zone.name)
+                        )
+                    )
+                )
+            );
         };
-      } else {
-        newState.scrums = {
-          ...state.scrums,
-          opponent: {
-            ...state.scrums.opponent,
-            total: state.scrums.opponent.total + 1
-          },
-          events: [...state.scrums.events, scrumEvent]
+
+        // Componente para calificación por estrellas
+        const StarRating = ({ rating, onRate, label }) => {
+            return React.createElement('div', { className: 'flex flex-col items-center space-y-3' },
+                React.createElement('span', { className: 'text-base font-medium text-gray-700' }, label),
+                React.createElement('div', { className: 'flex space-x-2' },
+                    [1, 2, 3, 4, 5].map((star) =>
+                        React.createElement('button', {
+                            key: star,
+                            onClick: () => onRate(star),
+                            className: `text-3xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400 transition-colors active:scale-110`
+                        }, '⭐')
+                    )
+                )
+            );
         };
-      }
 
-      if (action.data.penalty) {
-        newState.scrums = {
-          ...newState.scrums,
-          penalties: {
-            ...newState.scrums.penalties,
-            [action.data.penalty]: newState.scrums.penalties[action.data.penalty] + 1
-          }
+        // Header con indicador de usuarios conectados
+        const AppHeader = ({ connectedUsers, onResetGame }) => {
+            const [showUsers, setShowUsers] = useState(false);
+
+            return React.createElement('header', { className: 'bg-white shadow-sm border-b sticky top-0 z-30' },
+                React.createElement('div', { className: 'max-w-7xl mx-auto px-4 py-3' },
+                    React.createElement('div', { className: 'flex items-center justify-between' },
+                        React.createElement('h1', { className: 'text-lg md:text-2xl font-bold text-gray-900' }, 'Rugby Analysis'),
+                        
+                        React.createElement('div', { className: 'flex items-center space-x-3' },
+                            React.createElement('div', { className: 'relative' },
+                                React.createElement('button', {
+                                    onClick: () => setShowUsers(!showUsers),
+                                    className: 'flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm'
+                                },
+                                    React.createElement(Wifi, { size: 16 }),
+                                    React.createElement('span', null, connectedUsers.length)
+                                ),
+                                
+                                showUsers && React.createElement('div', { className: 'absolute top-full right-0 mt-2 bg-white border rounded-lg shadow-lg p-3 min-w-48' },
+                                    React.createElement('h4', { className: 'font-semibold mb-2' }, 'Usuarios conectados:'),
+                                    connectedUsers.map((user, index) =>
+                                        React.createElement('div', { key: index, className: 'text-sm text-gray-600 py-1' }, '• ' + user)
+                                    )
+                                )
+                            ),
+
+                            React.createElement('button', {
+                                onClick: onResetGame,
+                                className: 'px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm'
+                            }, 'Reset')
+                        )
+                    )
+                )
+            );
         };
-      }
 
-      newState.history = [scrumEvent, ...state.history].slice(0, 20);
-      return newState;
-
-    case 'ADD_ATTACK':
-      const attackEvent = {
-        id: Date.now(),
-        timestamp,
-        type: 'attack',
-        player: action.player,
-        data: action.data
-      };
-
-      if (action.data.type === 'rating') {
-        newState.attack = {
-          ...state.attack,
-          [action.data.category]: [...state.attack[action.data.category], action.data.rating],
-          events: [...state.attack.events, attackEvent]
-        };
-      } else if (action.data.type === 'run') {
-        newState.attack = {
-          ...state.attack,
-          runs: {
-            total: state.attack.runs.total + 1,
-            [action.data.effectiveness]: state.attack.runs[action.data.effectiveness] + 1
-          },
-          events: [...state.attack.events, attackEvent]
-        };
-      } else if (action.data.type === 'decision') {
-        newState.attack = {
-          ...state.attack,
-          finalDecisions: {
-            ...state.attack.finalDecisions,
-            [action.data.quality]: state.attack.finalDecisions[action.data.quality] + 1
-          },
-          events: [...state.attack.events, attackEvent]
-        };
-      } else if (action.data.type === 'role') {
-        newState.attack = {
-          ...state.attack,
-          roles: {
-            ...state.attack.roles,
-            [action.data.role]: (state.attack.roles[action.data.role] || 0) + 1
-          },
-          events: [...state.attack.events, attackEvent]
-        };
-      }
-
-      newState.history = [attackEvent, ...state.history].slice(0, 20);
-      return newState;
-
-    case 'UNDO_LAST_ACTION':
-      if (state.history.length === 0) return state;
-      
-      const lastEvent = state.history[0];
-      const newHistory = state.history.slice(1);
-      
-      // Aquí implementarías la lógica de reversión específica
-      // Por ahora solo removemos del historial
-      newState.history = newHistory;
-      return newState;
-
-    case 'ADD_USER':
-      newState.connectedUsers = [...state.connectedUsers, action.userName];
-      return newState;
-
-    case 'RESET_GAME':
-      return initialGameState;
-
-    default:
-      return state;
-  }
-}
-
-// Componente Selector de Jugadores
-const PlayerSelector = ({ selectedPlayer, onPlayerSelect, compact = false }) => {
-  const [showSelector, setShowSelector] = useState(false);
-
-  if (compact) {
-    return (
-      <div className="relative">
-        <button
-          onClick={() => setShowSelector(!showSelector)}
-          className={`w-16 h-16 rounded-full text-white font-bold text-lg ${
-            selectedPlayer ? 'bg-blue-600' : 'bg-gray-400'
-          } border-2 border-white shadow-lg`}
-        >
-          {selectedPlayer || '?'}
-        </button>
-        
-        {showSelector && (
-          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white border-2 border-gray-200 rounded-lg shadow-xl p-4 z-50">
-            <div className="grid grid-cols-5 gap-2 max-h-60 overflow-y-auto">
-              {Array.from({length: 23}, (_, i) => i + 1).map(num => (
-                <button
-                  key={num}
-                  onClick={() => {
-                    onPlayerSelect(num);
-                    setShowSelector(false);
-                  }}
-                  className="w-10 h-10 bg-blue-100 hover:bg-blue-200 rounded-full text-sm font-semibold"
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white p-4 rounded-lg shadow-sm border">
-      <h3 className="font-semibold mb-3 text-center">Seleccionar Jugador</h3>
-      <div className="grid grid-cols-5 gap-2">
-        {Array.from({length: 23}, (_, i) => i + 1).map(num => (
-          <button
-            key={num}
-            onClick={() => onPlayerSelect(num)}
-            className={`w-12 h-12 rounded-full text-sm font-semibold transition-colors ${
-              selectedPlayer === num 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            {num}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Selector de Zona del Campo
-const ZoneSelector = ({ selectedZone, onZoneSelect, title = "Zona del Campo" }) => {
-  return (
-    <div className="bg-white p-4 rounded-lg shadow-sm">
-      <h3 className="font-semibold mb-3 text-center">{title}</h3>
-      <div className="grid grid-cols-3 gap-2">
-        {fieldZones.map(zone => (
-          <button
-            key={zone.id}
-            onClick={() => onZoneSelect(zone.id)}
-            className={`p-3 rounded-lg text-center transition-colors ${
-              selectedZone === zone.id 
-                ? 'bg-blue-600 text-white' 
-                : `${zone.color} hover:bg-blue-100 text-gray-700`
-            }`}
-          >
-            <div className="text-xs font-medium">{zone.name}</div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Componente para calificación por estrellas
-const StarRating = ({ rating, onRate, label }) => {
-  return (
-    <div className="flex flex-col items-center space-y-3">
-      <span className="text-base font-medium text-gray-700">{label}</span>
-      <div className="flex space-x-2">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => onRate(star)}
-            className={`text-3xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400 transition-colors active:scale-110`}
-          >
-            ⭐
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Header con indicador de usuarios conectados
-const AppHeader = ({ connectedUsers, onResetGame }) => {
-  const [showUsers, setShowUsers] = useState(false);
-
-  return (
-    <header className="bg-white shadow-sm border-b sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg md:text-2xl font-bold text-gray-900">
-            Rugby Analysis
-          </h1>
-          
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <button
-                onClick={() => setShowUsers(!showUsers)}
-                className="flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
-              >
-                <Wifi size={16} />
-                <span>{connectedUsers.length}</span>
-              </button>
-              
-              {showUsers && (
-                <div className="absolute top-full right-0 mt-2 bg-white border rounded-lg shadow-lg p-3 min-w-48">
-                  <h4 className="font-semibold mb-2">Usuarios conectados:</h4>
-                  {connectedUsers.map((user, index) => (
-                    <div key={index} className="text-sm text-gray-600 py-1">
-                      • {user}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={onResetGame}
-              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-};
-
-// Módulo 1: Encargado de Pie (5 estadísticas)
-const KickAnalysis = ({ onAddKick }) => {
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [kickType, setKickType] = useState(''); // ofensiva/posicion
-  const [result, setResult] = useState(''); // adentro/sale
-  const [specific, setSpecific] = useState(''); // cajon9/otro
-  const [recovery, setRecovery] = useState(''); // recuperamos/no
-
-  const handleSubmit = () => {
-    if (selectedPlayer && kickType && result && specific && recovery) {
-      onAddKick({
-        type: 'ADD_KICK',
-        player: selectedPlayer,
-        data: {
-          kickType,
-          result,
-          specific,
-          recovery
-        }
-      });
-      
-      // Reset
-      setKickType('');
-      setResult('');
-      setSpecific('');
-      setRecovery('');
-    }
-  };
-
-  const canSubmit = selectedPlayer && kickType && result && specific && recovery;
-
-  return (
-    <div className="space-y-6">
-      <PlayerSelector selectedPlayer={selectedPlayer} onPlayerSelect={setSelectedPlayer} />
-
-      {/* Estadística 2: Ofensiva o de posición */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Tipo de Patada</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setKickType('offensive')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              kickType === 'offensive' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">⚡</div>
-            <div className="text-sm font-medium">Ofensiva</div>
-          </button>
-          <button
-            onClick={() => setKickType('positional')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              kickType === 'positional' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">📍</div>
-            <div className="text-sm font-medium">Posicional</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 3: Queda adentro o sale */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Resultado del Balón</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setResult('staysIn')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              result === 'staysIn' ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">✅</div>
-            <div className="text-sm font-medium">Queda Adentro</div>
-          </button>
-          <button
-            onClick={() => setResult('goesOut')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              result === 'goesOut' ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">↗️</div>
-            <div className="text-sm font-medium">Sale del Campo</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 4: Cajón del 9 u otro */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Tipo Específico</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setSpecific('cajon9')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              specific === 'cajon9' ? 'bg-purple-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">9️⃣</div>
-            <div className="text-sm font-medium">Cajón del 9</div>
-          </button>
-          <button
-            onClick={() => setSpecific('otherTypes')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              specific === 'otherTypes' ? 'bg-purple-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">🦶</div>
-            <div className="text-sm font-medium">Otro Tipo</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 5: Recuperamos si o no */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Recuperación</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setRecovery('recovered')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              recovery === 'recovered' ? 'bg-green-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">✅</div>
-            <div className="text-sm font-medium">Recuperamos</div>
-          </button>
-          <button
-            onClick={() => setRecovery('notRecovered')}
-            className={`p-4 rounded-lg text-center transition-colors ${
-              recovery === 'notRecovered' ? 'bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-lg">❌</div>
-            <div className="text-sm font-medium">No Recuperamos</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Botón de envío */}
-      <button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
-      >
-        Registrar Patada ({selectedPlayer ? `#${selectedPlayer}` : 'Sin jugador'})
-      </button>
-    </div>
-  );
-};
-
-// Módulo 2: Encargado de Line/Salidas (9 estadísticas)
-const LineoutAnalysis = ({ onAddLineout, onAddKickoff }) => {
-  const [mode, setMode] = useState('lineout'); // lineout o kickoff
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  
-  // Estados para lineout
-  const [team, setTeam] = useState(''); // own/opponent
-  const [result, setResult] = useState(''); // won/lost/stolen/complicated
-  const [zone, setZone] = useState('');
-  const [playersUsed, setPlayersUsed] = useState('');
-  const [postThrow, setPostThrow] = useState(''); // good/regular/bad
-  const [maul, setMaul] = useState(''); // effective/ineffective/notApplicable
-  
-  // Estados para kickoff
-  const [effectiveness, setEffectiveness] = useState(''); // effective/ineffective
-  const [tackle, setTackle] = useState(''); // effective/ineffective
-  const [pressure, setPressure] = useState(''); // effective/ineffective
-
-  const handleLineoutSubmit = () => {
-    if (selectedPlayer && team && result && zone && playersUsed && postThrow && maul) {
-      onAddLineout({
-        type: 'ADD_LINEOUT',
-        player: selectedPlayer,
-        data: {
-          team,
-          result,
-          zone,
-          playersUsed,
-          postThrow,
-          maul
-        }
-      });
-      
-      // Reset
-      setTeam('');
-      setResult('');
-      setZone('');
-      setPlayersUsed('');
-      setPostThrow('');
-      setMaul('');
-    }
-  };
-
-  const handleKickoffSubmit = () => {
-    if (selectedPlayer && effectiveness && tackle && pressure) {
-      onAddKickoff({
-        type: 'ADD_KICKOFF',
-        player: selectedPlayer,
-        data: {
-          effectiveness,
-          tackle,
-          pressure
-        }
-      });
-      
-      // Reset
-      setEffectiveness('');
-      setTackle('');
-      setPressure('');
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Selector de modo */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setMode('lineout')}
-          className={`p-3 rounded-lg text-center ${
-            mode === 'lineout' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-          }`}
-        >
-          Lineouts
-        </button>
-        <button
-          onClick={() => setMode('kickoff')}
-          className={`p-3 rounded-lg text-center ${
-            mode === 'kickoff' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-          }`}
-        >
-          Salidas
-        </button>
-      </div>
-
-      <PlayerSelector selectedPlayer={selectedPlayer} onPlayerSelect={setSelectedPlayer} />
-
-      {mode === 'lineout' ? (
-        <>
-          {/* Estadística 1: A favor y en contra */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Lineout</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setTeam('own')}
-                className={`p-4 rounded-lg text-center ${
-                  team === 'own' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                A Favor
-              </button>
-              <button
-                onClick={() => setTeam('opponent')}
-                className={`p-4 rounded-lg text-center ${
-                  team === 'opponent' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                En Contra
-              </button>
-            </div>
-          </div>
-
-          {/* Estadística 2: Resultado */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Resultado</h3>
-            {team === 'own' ? (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setResult('won')}
-                  className={`p-4 rounded-lg text-center ${
-                    result === 'won' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                  }`}
-                >
-                  Ganado
-                </button>
-                <button
-                  onClick={() => setResult('lost')}
-                  className={`p-4 rounded-lg text-center ${
-                    result === 'lost' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                  }`}
-                >
-                  Perdido
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setResult('stolen')}
-                  className={`p-4 rounded-lg text-center ${
-                    result === 'stolen' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-                  }`}
-                >
-                  Robado
-                </button>
-                <button
-                  onClick={() => setResult('complicated')}
-                  className={`p-4 rounded-lg text-center ${
-                    result === 'complicated' ? 'bg-yellow-500 text-white' : 'bg-gray-100'
-                  }`}
-                >
-                  Complicado
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Estadística 3: Zona de cancha */}
-          <ZoneSelector selectedZone={zone} onZoneSelect={setZone} />
-
-          {/* Estadística 4: Cantidad de jugadores */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Jugadores Utilizados</h3>
-            <div className="grid grid-cols-4 gap-2">
-              {lineoutPlayers.map(num => (
-                <button
-                  key={num}
-                  onClick={() => setPlayersUsed(num)}
-                  className={`p-3 rounded-lg text-center ${
-                    playersUsed === num ? 'bg-purple-500 text-white' : 'bg-gray-100'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Estadística 5: Efectividad post tiro */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Efectividad Post Tiro</h3>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setPostThrow('good')}
-                className={`p-3 rounded-lg text-center ${
-                  postThrow === 'good' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Buena
-              </button>
-              <button
-                onClick={() => setPostThrow('regular')}
-                className={`p-3 rounded-lg text-center ${
-                  postThrow === 'regular' ? 'bg-yellow-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Regular
-              </button>
-              <button
-                onClick={() => setPostThrow('bad')}
-                className={`p-3 rounded-lg text-center ${
-                  postThrow === 'bad' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Mala
-              </button>
-            </div>
-          </div>
-
-          {/* Estadística 6: Efectividad maul */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Efectividad Maul</h3>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setMaul('effective')}
-                className={`p-3 rounded-lg text-center ${
-                  maul === 'effective' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Efectivo
-              </button>
-              <button
-                onClick={() => setMaul('ineffective')}
-                className={`p-3 rounded-lg text-center ${
-                  maul === 'ineffective' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Inefectivo
-              </button>
-              <button
-                onClick={() => setMaul('notApplicable')}
-                className={`p-3 rounded-lg text-center ${
-                  maul === 'notApplicable' ? 'bg-gray-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                N/A
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handleLineoutSubmit}
-            disabled={!selectedPlayer || !team || !result || !zone || !playersUsed || !postThrow || !maul}
-            className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 font-medium"
-          >
-            Registrar Lineout ({selectedPlayer ? `#${selectedPlayer}` : 'Sin jugador'})
-          </button>
-        </>
-      ) : (
-        <>
-          {/* Estadística 8: Efectividad salidas */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Efectividad Recepción</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setEffectiveness('effective')}
-                className={`p-4 rounded-lg text-center ${
-                  effectiveness === 'effective' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Efectiva
-              </button>
-              <button
-                onClick={() => setEffectiveness('ineffective')}
-                className={`p-4 rounded-lg text-center ${
-                  effectiveness === 'ineffective' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Inefectiva
-              </button>
-            </div>
-          </div>
-
-          {/* Estadística 9: Tackle en salidas */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Tackle en Salidas</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setTackle('effective')}
-                className={`p-4 rounded-lg text-center ${
-                  tackle === 'effective' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Efectivo
-              </button>
-              <button
-                onClick={() => setTackle('ineffective')}
-                className={`p-4 rounded-lg text-center ${
-                  tackle === 'ineffective' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Inefectivo
-              </button>
-            </div>
-          </div>
-
-          {/* Estadística 9: Presión */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Presión (Pie Incómodo)</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setPressure('effective')}
-                className={`p-4 rounded-lg text-center ${
-                  pressure === 'effective' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Efectiva
-              </button>
-              <button
-                onClick={() => setPressure('ineffective')}
-                className={`p-4 rounded-lg text-center ${
-                  pressure === 'ineffective' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                Inefectiva
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handleKickoffSubmit}
-            disabled={!selectedPlayer || !effectiveness || !tackle || !pressure}
-            className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 font-medium"
-          >
-            Registrar Salida ({selectedPlayer ? `#${selectedPlayer}` : 'Sin jugador'})
-          </button>
-        </>
-      )}
-    </div>
-  );
-};
-
-// Módulo 3: Encargado de Scrum (6 estadísticas)
-const ScrumAnalysis = ({ onAddScrum }) => {
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [team, setTeam] = useState(''); // own/opponent
-  const [result, setResult] = useState(''); // positive/negative
-  const [entry, setEntry] = useState(''); // entryWon/entryLost
-  const [ballUse, setBallUse] = useState(''); // ballUseGood/ballUseBad
-  const [turn, setTurn] = useState(''); // turnCorrect/turnIncorrect
-  const [penalty, setPenalty] = useState(''); // for/against
-
-  const handleSubmit = () => {
-    if (selectedPlayer && team && result && entry && ballUse && turn) {
-      onAddScrum({
-        type: 'ADD_SCRUM',
-        player: selectedPlayer,
-        data: {
-          team,
-          result,
-          entry,
-          ballUse,
-          turn,
-          penalty
-        }
-      });
-      
-      // Reset
-      setTeam('');
-      setResult('');
-      setEntry('');
-      setBallUse('');
-      setTurn('');
-      setPenalty('');
-    }
-  };
-
-  const canSubmit = selectedPlayer && team && result && entry && ballUse && turn;
-
-  return (
-    <div className="space-y-6">
-      <PlayerSelector selectedPlayer={selectedPlayer} onPlayerSelect={setSelectedPlayer} />
-
-      {/* Estadística 1: A favor / en contra */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Scrum</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setTeam('own')}
-            className={`p-4 rounded-lg text-center ${
-              team === 'own' ? 'bg-green-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            A Favor
-          </button>
-          <button
-            onClick={() => setTeam('opponent')}
-            className={`p-4 rounded-lg text-center ${
-              team === 'opponent' ? 'bg-red-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            En Contra
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 2: Resultado + / - */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Resultado</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setResult('positive')}
-            className={`p-4 rounded-lg text-center ${
-              result === 'positive' ? 'bg-green-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            <div className="text-lg">➕</div>
-            <div className="text-sm">Positivo</div>
-          </button>
-          <button
-            onClick={() => setResult('negative')}
-            className={`p-4 rounded-lg text-center ${
-              result === 'negative' ? 'bg-red-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            <div className="text-lg">➖</div>
-            <div className="text-sm">Negativo</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 3: Entrada ganada / perdida */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Entrada</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setEntry('entryWon')}
-            className={`p-4 rounded-lg text-center ${
-              entry === 'entryWon' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Ganada
-          </button>
-          <button
-            onClick={() => setEntry('entryLost')}
-            className={`p-4 rounded-lg text-center ${
-              entry === 'entryLost' ? 'bg-orange-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Perdida
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 4: Uso de pelota buena / mala */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Uso de la Pelota</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setBallUse('ballUseGood')}
-            className={`p-4 rounded-lg text-center ${
-              ballUse === 'ballUseGood' ? 'bg-green-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Buena
-          </button>
-          <button
-            onClick={() => setBallUse('ballUseBad')}
-            className={`p-4 rounded-lg text-center ${
-              ballUse === 'ballUseBad' ? 'bg-red-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Mala
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 5: Giro correcto / incorrecto */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Giro</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setTurn('turnCorrect')}
-            className={`p-4 rounded-lg text-center ${
-              turn === 'turnCorrect' ? 'bg-purple-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Correcto
-          </button>
-          <button
-            onClick={() => setTurn('turnIncorrect')}
-            className={`p-4 rounded-lg text-center ${
-              turn === 'turnIncorrect' ? 'bg-yellow-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Incorrecto
-          </button>
-        </div>
-      </div>
-
-      {/* Estadística 6: Penales (opcional) */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="font-semibold mb-3 text-center">Penal (Opcional)</h3>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={() => setPenalty('for')}
-            className={`p-3 rounded-lg text-center ${
-              penalty === 'for' ? 'bg-green-600 text-white' : 'bg-gray-100'
-            }`}
-          >
-            A Favor
-          </button>
-          <button
-            onClick={() => setPenalty('against')}
-            className={`p-3 rounded-lg text-center ${
-              penalty === 'against' ? 'bg-red-600 text-white' : 'bg-gray-100'
-            }`}
-          >
-            En Contra
-          </button>
-          <button
-            onClick={() => setPenalty('')}
-            className={`p-3 rounded-lg text-center ${
-              penalty === '' ? 'bg-gray-600 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Sin Penal
-          </button>
-        </div>
-      </div>
-
-      <button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 font-medium"
-      >
-        Registrar Scrum ({selectedPlayer ? `#${selectedPlayer}` : 'Sin jugador'})
-      </button>
-    </div>
-  );
-};
-
-// Módulo 4: Encargado de Ataque (5 estadísticas)
-const AttackAnalysis = ({ onAddAttack }) => {
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [mode, setMode] = useState('rating'); // rating, run, decision, role
-  
-  // Estados para ratings
-  const [decision, setDecision] = useState(0);
-  const [execution, setExecution] = useState(0);
-  
-  // Estados para carreras
-  const [runEffectiveness, setRunEffectiveness] = useState('');
-  
-  // Estados para decisión final
-  const [finalDecision, setFinalDecision] = useState('');
-  
-  // Estados para rol
-  const [role, setRole] = useState('');
-
-  const handleRatingSubmit = () => {
-    if (selectedPlayer && (decision > 0 || execution > 0)) {
-      if (decision > 0) {
-        onAddAttack({
-          type: 'ADD_ATTACK',
-          player: selectedPlayer,
-          data: {
-            type: 'rating',
-            category: 'decisions',
-            rating: decision
-          }
-        });
-      }
-      if (execution > 0) {
-        onAddAttack({
-          type: 'ADD_ATTACK',
-          player: selectedPlayer,
-          data: {
-            type: 'rating',
-            category: 'executions',
-            rating: execution
-          }
-        });
-      }
-      setDecision(0);
-      setExecution(0);
-    }
-  };
-
-  const handleRunSubmit = () => {
-    if (selectedPlayer && runEffectiveness) {
-      onAddAttack({
-        type: 'ADD_ATTACK',
-        player: selectedPlayer,
-        data: {
-          type: 'run',
-          effectiveness: runEffectiveness
-        }
-      });
-      setRunEffectiveness('');
-    }
-  };
-
-  const handleDecisionSubmit = () => {
-    if (selectedPlayer && finalDecision) {
-      onAddAttack({
-        type: 'ADD_ATTACK',
-        player: selectedPlayer,
-        data: {
-          type: 'decision',
-          quality: finalDecision
-        }
-      });
-      setFinalDecision('');
-    }
-  };
-
-  const handleRoleSubmit = () => {
-    if (selectedPlayer && role) {
-      onAddAttack({
-        type: 'ADD_ATTACK',
-        player: selectedPlayer,
-        data: {
-          type: 'role',
-          role: role
-        }
-      });
-      setRole('');
-    }
-  };
-
-  const roles = [
-    'Creador', 'Finalizador', 'Apoyo', 'Penetrador', 'Distribuidor'
-  ];
-
-  return (
-    <div className="space-y-6">
-      <PlayerSelector selectedPlayer={selectedPlayer} onPlayerSelect={setSelectedPlayer} />
-
-      {/* Selector de modo */}
-      <div className="grid grid-cols-4 gap-2">
-        <button
-          onClick={() => setMode('rating')}
-          className={`p-2 rounded-lg text-xs ${
-            mode === 'rating' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-          }`}
-        >
-          Calificación
-        </button>
-        <button
-          onClick={() => setMode('run')}
-          className={`p-2 rounded-lg text-xs ${
-            mode === 'run' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-          }`}
-        >
-          Carrera
-        </button>
-        <button
-          onClick={() => setMode('decision')}
-          className={`p-2 rounded-lg text-xs ${
-            mode === 'decision' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-          }`}
-        >
-          Decisión
-        </button>
-        <button
-          onClick={() => setMode('role')}
-          className={`p-2 rounded-lg text-xs ${
-            mode === 'role' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-          }`}
-        >
-          Rol
-        </button>
-      </div>
-
-      {mode === 'rating' && (
-        <>
-          {/* Estadística 1: Decisión de lo que vamos a hacer */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <StarRating 
-              rating={decision}
-              onRate={setDecision}
-              label="Decisión Táctica"
-            />
-          </div>
-
-          {/* Estadística 2: Ejecución de la decisión */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <StarRating 
-              rating={execution}
-              onRate={setExecution}
-              label="Ejecución"
-            />
-          </div>
-
-          <button
-            onClick={handleRatingSubmit}
-            disabled={!selectedPlayer || (decision === 0 && execution === 0)}
-            className="w-full p-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 font-medium"
-          >
-            Registrar Calificaciones
-          </button>
-        </>
-      )}
-
-      {mode === 'run' && (
-        <>
-          {/* Estadística 3: Carreras */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Efectividad de Carrera</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setRunEffectiveness('effective')}
-                className={`p-4 rounded-lg text-center ${
-                  runEffectiveness === 'effective' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-lg">✅</div>
-                <div className="text-sm">Efectiva</div>
-              </button>
-              <button
-                onClick={() => setRunEffectiveness('ineffective')}
-                className={`p-4 rounded-lg text-center ${
-                  runEffectiveness === 'ineffective' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-lg">❌</div>
-                <div className="text-sm">Inefectiva</div>
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handleRunSubmit}
-            disabled={!selectedPlayer || !runEffectiveness}
-            className="w-full p-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 font-medium"
-          >
-            Registrar Carrera
-          </button>
-        </>
-      )}
-
-      {mode === 'decision' && (
-        <>
-          {/* Estadística 4: Toma de decisión */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Toma de Decisión Final</h3>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setFinalDecision('good')}
-                className={`p-4 rounded-lg text-center ${
-                  finalDecision === 'good' ? 'bg-green-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-lg">😊</div>
-                <div className="text-sm">Buena</div>
-              </button>
-              <button
-                onClick={() => setFinalDecision('regular')}
-                className={`p-4 rounded-lg text-center ${
-                  finalDecision === 'regular' ? 'bg-yellow-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-lg">😐</div>
-                <div className="text-sm">Regular</div>
-              </button>
-              <button
-                onClick={() => setFinalDecision('bad')}
-                className={`p-4 rounded-lg text-center ${
-                  finalDecision === 'bad' ? 'bg-red-500 text-white' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-lg">😞</div>
-                <div className="text-sm">Mala</div>
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handleDecisionSubmit}
-            disabled={!selectedPlayer || !finalDecision}
-            className="w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 font-medium"
-          >
-            Registrar Decisión
-          </button>
-        </>
-      )}
-
-      {mode === 'role' && (
-        <>
-          {/* Estadística 5: Rol */}
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <h3 className="font-semibold mb-3 text-center">Rol en la Jugada</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {roles.map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRole(r)}
-                  className={`p-3 rounded-lg text-center text-sm ${
-                    role === r ? 'bg-purple-500 text-white' : 'bg-gray-100'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={handleRoleSubmit}
-            disabled={!selectedPlayer || !role}
-            className="w-full p-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 font-medium"
-          >
-            Registrar Rol
-          </button>
-        </>
-      )}
-    </div>
-  );
-};
-
-// Dashboard Completo
-const CoachDashboard = ({ gameState }) => {
-  // Cálculos para pie
-  const kickStats = {
-    total: gameState.kicks.total,
-    offensivePerc: gameState.kicks.total > 0 ? (gameState.kicks.offensive / gameState.kicks.total * 100).toFixed(1) : 0,
-    positionalPerc: gameState.kicks.total > 0 ? (gameState.kicks.positional / gameState.kicks.total * 100).toFixed(1) : 0,
-    staysInPerc: gameState.kicks.total > 0 ? (gameState.kicks.staysIn / gameState.kicks.total * 100).toFixed(1) : 0,
-    cajon9Perc: gameState.kicks.total > 0 ? (gameState.kicks.cajon9 / gameState.kicks.total * 100).toFixed(1) : 0,
-    recoveryPerc: gameState.kicks.total > 0 ? (gameState.kicks.recovered / gameState.kicks.total * 100).toFixed(1) : 0
-  };
-
-  // Cálculos para lineouts
-  const lineoutStats = {
-    ownEffectiveness: gameState.lineouts.own.total > 0 ? (gameState.lineouts.own.won / gameState.lineouts.own.total * 100).toFixed(1) : 0,
-    opponentTotal: gameState.lineouts.opponent.total,
-    stolenCount: gameState.lineouts.opponent.stolen,
-    complicatedCount: gameState.lineouts.opponent.complicated,
-    postThrowGood: gameState.lineouts.own.postThrow.good,
-    maulEffective: gameState.lineouts.own.maul.effective,
-    kickoffEffectiveness: gameState.lineouts.kickoffs.received > 0 ? (gameState.lineouts.kickoffs.effective / gameState.lineouts.kickoffs.received * 100).toFixed(1) : 0
-  };
-
-  // Cálculos para scrums
-  const scrumStats = {
-    ownEffectiveness: gameState.scrums.own.total > 0 ? (gameState.scrums.own.positive / gameState.scrums.own.total * 100).toFixed(1) : 0,
-    entryWonPerc: gameState.scrums.own.total > 0 ? (gameState.scrums.own.entryWon / gameState.scrums.own.total * 100).toFixed(1) : 0,
-    ballUseGoodPerc: gameState.scrums.own.total > 0 ? (gameState.scrums.own.ballUseGood / gameState.scrums.own.total * 100).toFixed(1) : 0,
-    turnCorrectPerc: gameState.scrums.own.total > 0 ? (gameState.scrums.own.turnCorrect / gameState.scrums.own.total * 100).toFixed(1) : 0,
-    penaltyBalance: gameState.scrums.penalties.for - gameState.scrums.penalties.against
-  };
-
-  // Cálculos para ataque
-  const attackStats = {
-    avgDecision: gameState.attack.decisions.length > 0 ? (gameState.attack.decisions.reduce((a, b) => a + b, 0) / gameState.attack.decisions.length).toFixed(1) : 0,
-    avgExecution: gameState.attack.executions.length > 0 ? (gameState.attack.executions.reduce((a, b) => a + b, 0) / gameState.attack.executions.length).toFixed(1) : 0,
-    runEffectiveness: gameState.attack.runs.total > 0 ? (gameState.attack.runs.effective / gameState.attack.runs.total * 100).toFixed(1) : 0,
-    decisionGoodPerc: (gameState.attack.finalDecisions.good + gameState.attack.finalDecisions.regular + gameState.attack.finalDecisions.bad) > 0 
-      ? (gameState.attack.finalDecisions.good / (gameState.attack.finalDecisions.good + gameState.attack.finalDecisions.regular + gameState.attack.finalDecisions.bad) * 100).toFixed(1) 
-      : 0
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">
-          📊 Dashboard Head Coach
-        </h2>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        {/* Estadísticas de Pie */}
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h3 className="text-lg font-bold mb-3 text-blue-800">🦶 JUEGO CON EL PIE</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Total Patadas:</span>
-                <span className="font-bold">{kickStats.total}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Ofensivas:</span>
-                <span>{gameState.kicks.offensive} ({kickStats.offensivePerc}%)</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Posicionales:</span>
-                <span>{gameState.kicks.positional} ({kickStats.positionalPerc}%)</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Quedan Adentro:</span>
-                <span className="font-bold">{kickStats.staysInPerc}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Cajón del 9:</span>
-                <span>{kickStats.cajon9Perc}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Recuperación:</span>
-                <span className="font-bold">{kickStats.recoveryPerc}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Estadísticas de Lineouts */}
-        <div className="bg-green-50 p-4 rounded-lg">
-          <h3 className="text-lg font-bold mb-3 text-green-800">📏 LINEOUTS & SALIDAS</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Propios:</span>
-                <span className="font-bold">{gameState.lineouts.own.won}/{gameState.lineouts.own.total}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Efectividad:</span>
-                <span className="font-bold">{lineoutStats.ownEffectiveness}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Post-Tiro Bueno:</span>
-                <span>{lineoutStats.postThrowGood}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Mauls Efectivos:</span>
-                <span>{lineoutStats.maulEffective}</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Rivales Total:</span>
-                <span className="font-bold">{lineoutStats.opponentTotal}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Robados:</span>
-                <span>{lineoutStats.stolenCount}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Complicados:</span>
-                <span>{lineoutStats.complicatedCount}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Salidas Efectivas:</span>
-                <span>{lineoutStats.kickoffEffectiveness}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Estadísticas de Scrums */}
-        <div className="bg-red-50 p-4 rounded-lg">
-          <h3 className="text-lg font-bold mb-3 text-red-800">🏈 SCRUMS</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Propios:</span>
-                <span className="font-bold">{gameState.scrums.own.positive}/{gameState.scrums.own.total}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Efectividad:</span>
-                <span className="font-bold">{scrumStats.ownEffectiveness}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Entrada Ganada:</span>
-                <span>{scrumStats.entryWonPerc}%</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Uso Pelota Bueno:</span>
-                <span>{scrumStats.ballUseGoodPerc}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Giro Correcto:</span>
-                <span>{scrumStats.turnCorrectPerc}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Balance Penales:</span>
-                <span className={scrumStats.penaltyBalance >= 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
-                  {scrumStats.penaltyBalance > 0 ? '+' : ''}{scrumStats.penaltyBalance}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Estadísticas de Ataque */}
-        <div className="bg-orange-50 p-4 rounded-lg">
-          <h3 className="text-lg font-bold mb-3 text-orange-800">⚡ ATAQUE</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Promedio Decisiones:</span>
-                <span className="font-bold">{attackStats.avgDecision}/5 {'⭐'.repeat(Math.floor(attackStats.avgDecision))}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Promedio Ejecución:</span>
-                <span className="font-bold">{attackStats.avgExecution}/5 {'⭐'.repeat(Math.floor(attackStats.avgExecution))}</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span>Carreras Totales:</span>
-                <span className="font-bold">{gameState.attack.runs.total}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Efectividad Carreras:</span>
-                <span className="font-bold">{attackStats.runEffectiveness}%</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span>Decisiones Buenas:</span>
-                <span>{attackStats.decisionGoodPerc}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Resumen rápido */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h3 className="text-lg font-bold mb-3 text-gray-800">🎯 RESUMEN</h3>
-        <div className="grid grid-cols-1 gap-2 text-sm">
-          <div className="flex justify-between">
-            <span>Total eventos:</span>
-            <span className="font-bold">{gameState.history.length}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Última acción:</span>
-            <span className="font-bold">
-              {gameState.history.length > 0 
-                ? `#${gameState.history[0].player} - ${gameState.history[0].type}`
-                : 'Ninguna'
-              }
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Historial de eventos (para corrección de errores)
-const EventHistory = ({ history, onUndo }) => {
-  const [showHistory, setShowHistory] = useState(false);
-
-  if (!showHistory) {
-    return (
-      <button
-        onClick={() => setShowHistory(true)}
-        className="fixed bottom-6 right-6 bg-gray-600 text-white p-3 rounded-full shadow-lg z-40"
-      >
-        <Timer size={24} />
-      </button>
-    );
-  }
-
-  return (
-    <div className="fixed bottom-6 right-6 bg-white border-2 border-gray-200 rounded-lg shadow-xl p-4 z-50 max-w-sm">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="font-semibold">Últimos eventos</h3>
-        <button
-          onClick={() => setShowHistory(false)}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          ✕
-        </button>
-      </div>
-      
-      <div className="max-h-60 overflow-y-auto space-y-2">
-        {history.slice(0, 10).map((event, index) => (
-          <div key={event.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
-            <div>
-              <span className="font-medium">#{event.player}</span>
-              <span className="text-gray-600 ml-2">{event.type}</span>
-            </div>
-            {index === 0 && (
-              <button
-                onClick={onUndo}
-                className="text-red-600 hover:text-red-800"
-              >
-                <Undo2 size={16} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Componente Principal
-const RugbyAnalysisApp = () => {
-  const [gameState, dispatch] = useReducer(gameReducer, initialGameState);
-  const [currentModule, setCurrentModule] = useState('dashboard');
-  const [userName, setUserName] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-
-  // Simular conexión de usuario
-  useEffect(() => {
-    if (!isConnected && userName) {
-      dispatch({ type: 'ADD_USER', userName });
-      setIsConnected(true);
-    }
-  }, [userName, isConnected]);
-
-  const modules = [
-    { id: 'dashboard', name: 'Dashboard', icon: BarChart3, component: CoachDashboard },
-    { id: 'kicks', name: 'Patadas', icon: Target, component: KickAnalysis },
-    { id: 'lineouts', name: 'Lineouts', icon: Activity, component: LineoutAnalysis },
-    { id: 'scrums', name: 'Scrums', icon: Users, component: ScrumAnalysis },
-    { id: 'attack', name: 'Ataque', icon: TrendingUp, component: AttackAnalysis }
-  ];
-
-  const currentModuleData = modules.find(m => m.id === currentModule);
-  const CurrentComponent = currentModuleData.component;
-
-  // Modal de login simple
-  if (!userName) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-lg shadow-lg max-w-sm w-full">
-          <h2 className="text-2xl font-bold mb-6 text-center">Rugby Analysis</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Tu nombre/rol:</label>
-              <input
-                type="text"
-                placeholder="Ej: Entrenador Scrum"
-                className="w-full p-3 border rounded-lg"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && e.target.value.trim()) {
-                    setUserName(e.target.value.trim());
-                  }
-                }}
-              />
-            </div>
-            <button
-              onClick={() => {
-                const input = document.querySelector('input');
-                if (input.value.trim()) {
-                  setUserName(input.value.trim());
+        // Módulo 1: Encargado de Pie
+        const KickAnalysis = ({ onAddKick }) => {
+            const [selectedPlayer, setSelectedPlayer] = useState(null);
+            const [kickType, setKickType] = useState('');
+            const [result, setResult] = useState('');
+            const [specific, setSpecific] = useState('');
+            const [recovery, setRecovery] = useState('');
+
+            const handleSubmit = () => {
+                if (selectedPlayer && kickType && result && specific && recovery) {
+                    onAddKick({
+                        type: 'ADD_KICK',
+                        player: selectedPlayer,
+                        data: {
+                            kickType,
+                            result,
+                            specific,
+                            recovery
+                        }
+                    });
+                    
+                    setKickType('');
+                    setResult('');
+                    setSpecific('');
+                    setRecovery('');
                 }
-              }}
-              className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Conectar al Análisis
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+            };
 
-  return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <AppHeader 
-        connectedUsers={gameState.connectedUsers}
-        onResetGame={() => dispatch({ type: 'RESET_GAME' })}
-      />
+            const canSubmit = selectedPlayer && kickType && result && specific && recovery;
 
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm sticky top-16 z-20">
-        <div className="overflow-x-auto">
-          <div className="flex space-x-1 px-4 py-2 min-w-max">
-            {modules.map((module) => {
-              const Icon = module.icon;
-              return (
-                <button
-                  key={module.id}
-                  onClick={() => setCurrentModule(module.id)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-                    currentModule === module.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 active:bg-gray-200'
-                  }`}
-                >
-                  <Icon size={16} />
-                  <span className="text-sm font-medium">{module.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
+            return React.createElement('div', { className: 'space-y-6' },
+                React.createElement(PlayerSelector, { selectedPlayer, onPlayerSelect: setSelectedPlayer }),
 
-      {/* Main Content */}
-      <main className="px-4 py-6 pb-20">
-        {currentModule === 'dashboard' && <CurrentComponent gameState={gameState} />}
-        {currentModule === 'kicks' && <CurrentComponent onAddKick={dispatch} />}
-        {currentModule === 'lineouts' && <CurrentComponent onAddLineout={dispatch} onAddKickoff={dispatch} />}
-        {currentModule === 'scrums' && <CurrentComponent onAddScrum={dispatch} />}
-        {currentModule === 'attack' && <CurrentComponent onAddAttack={dispatch} gameState={gameState} />}
-      </main>
+                React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm' },
+                    React.createElement('h3', { className: 'font-semibold mb-3 text-center' }, 'Tipo de Patada'),
+                    React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+                        React.createElement('button', {
+                            onClick: () => setKickType('offensive'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                kickType === 'offensive' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '⚡'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Ofensiva')
+                        ),
+                        React.createElement('button', {
+                            onClick: () => setKickType('positional'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                kickType === 'positional' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '📍'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Posicional')
+                        )
+                    )
+                ),
 
-      {/* Event History */}
-      <EventHistory 
-        history={gameState.history}
-        onUndo={() => dispatch({ type: 'UNDO_LAST_ACTION' })}
-      />
-    </div>
-  );
-};
+                React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm' },
+                    React.createElement('h3', { className: 'font-semibold mb-3 text-center' }, 'Resultado del Balón'),
+                    React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+                        React.createElement('button', {
+                            onClick: () => setResult('staysIn'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                result === 'staysIn' ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '✅'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Queda Adentro')
+                        ),
+                        React.createElement('button', {
+                            onClick: () => setResult('goesOut'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                result === 'goesOut' ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '↗️'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Sale del Campo')
+                        )
+                    )
+                ),
 
-export default RugbyAnalysisApp;
+                React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm' },
+                    React.createElement('h3', { className: 'font-semibold mb-3 text-center' }, 'Tipo Específico'),
+                    React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+                        React.createElement('button', {
+                            onClick: () => setSpecific('cajon9'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                specific === 'cajon9' ? 'bg-purple-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '9️⃣'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Cajón del 9')
+                        ),
+                        React.createElement('button', {
+                            onClick: () => setSpecific('otherTypes'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                specific === 'otherTypes' ? 'bg-purple-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '🦶'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Otro Tipo')
+                        )
+                    )
+                ),
+
+                React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm' },
+                    React.createElement('h3', { className: 'font-semibold mb-3 text-center' }, 'Recuperación'),
+                    React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+                        React.createElement('button', {
+                            onClick: () => setRecovery('recovered'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                recovery === 'recovered' ? 'bg-green-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '✅'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'Recuperamos')
+                        ),
+                        React.createElement('button', {
+                            onClick: () => setRecovery('notRecovered'),
+                            className: `p-4 rounded-lg text-center transition-colors ${
+                                recovery === 'notRecovered' ? 'bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                            }`
+                        },
+                            React.createElement('div', { className: 'text-lg' }, '❌'),
+                            React.createElement('div', { className: 'text-sm font-medium' }, 'No Recuperamos')
+                        )
+                    )
+                ),
+
+                React.createElement('button', {
+                    onClick: handleSubmit,
+                    disabled: !canSubmit,
+                    className: 'w-full p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium'
+                }, `Registrar Patada (${selectedPlayer ? `#${selectedPlayer}` : 'Sin jugador'})`)
+            );
+        };
+
+        // Dashboard Head Coach
+        const CoachDashboard = ({ gameState }) => {
+            const kickStats = {
+                total: gameState.kicks.total,
+                offensivePerc: gameState.kicks.total > 0 ? (gameState.kicks.offensive / gameState.kicks.total * 100).toFixed(1) : 0,
+                positionalPerc: gameState.kicks.total > 0 ? (gameState.kicks.positional / gameState.kicks.total * 100).toFixed(1) : 0,
+                staysInPerc: gameState.kicks.total > 0 ? (gameState.kicks.staysIn / gameState.kicks.total * 100).toFixed(1) : 0,
+                cajon9Perc: gameState.kicks.total > 0 ? (gameState.kicks.cajon9 / gameState.kicks.total * 100).toFixed(1) : 0,
+                recoveryPerc: gameState.kicks.total > 0 ? (gameState.kicks.recovered / gameState.kicks.total * 100).toFixed(1) : 0
+            };
+
+            return React.createElement('div', { className: 'space-y-4' },
+                React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm' },
+                    React.createElement('h2', { className: 'text-2xl font-bold mb-4 text-center text-gray-800' }, '📊 Dashboard Head Coach')
+                ),
+
+                React.createElement('div', { className: 'grid grid-cols-1 gap-4' },
+                    React.createElement('div', { className: 'bg-blue-50 p-4 rounded-lg' },
+                        React.createElement('h3', { className: 'text-lg font-bold mb-3 text-blue-800' }, '🦶 JUEGO CON EL PIE'),
+                        React.createElement('div', { className: 'grid grid-cols-2 gap-4 text-sm' },
+                            React.createElement('div', null,
+                                React.createElement('div', { className: 'flex justify-between mb-1' },
+                                    React.createElement('span', null, 'Total Patadas:'),
+                                    React.createElement('span', { className: 'font-bold' }, kickStats.total)
+                                ),
+                                React.createElement('div', { className: 'flex justify-between mb-1' },
+                                    React.createElement('span', null, 'Ofensivas:'),
+                                    React.createElement('span', null, `${gameState.kicks.offensive} (${kickStats.offensivePerc}%)`)
+                                ),
+                                React.createElement('div', { className: 'flex justify-between mb-1' },
+                                    React.createElement('span', null, 'Posicionales:'),
+                                    React.createElement('span', null, `${gameState.kicks.positional} (${kickStats.positionalPerc}%)`)
+                                )
+                            ),
+                            React.createElement('div', null,
+                                React.createElement('div', { className: 'flex justify-between mb-1' },
+                                    React.createElement('span', null, 'Quedan Adentro:'),
+                                    React.createElement('span', { className: 'font-bold' }, `${kickStats.staysInPerc}%`)
+                                ),
+                                React.createElement('div', { className: 'flex justify-between mb-1' },
+                                    React.createElement('span', null, 'Cajón del 9:'),
+                                    React.createElement('span', null, `${kickStats.cajon9Perc}%`)
+                                ),
+                                React.createElement('div', { className: 'flex justify-between mb-1' },
+                                    React.createElement('span', null, 'Recuperación:'),
+                                    React.createElement('span', { className: 'font-bold' }, `${kickStats.recoveryPerc}%`)
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                React.createElement('div', { className: 'bg-gray-50 p-4 rounded-lg' },
+                    React.createElement('h3', { className: 'text-lg font-bold mb-3 text-gray-800' }, '🎯 RESUMEN'),
+                    React.createElement('div', { className: 'grid grid-cols-1 gap-2 text-sm' },
+                        React.createElement('div', { className: 'flex justify-between' },
+                            React.createElement('span', null, 'Total eventos:'),
+                            React.createElement('span', { className: 'font-bold' }, gameState.history.length)
+                        ),
+                        React.createElement('div', { className: 'flex justify-between' },
+                            React.createElement('span', null, 'Última acción:'),
+                            React.createElement('span', { className: 'font-bold' },
+                                gameState.history.length > 0 
+                                    ? `#${gameState.history[0].player} - ${gameState.history[0].type}`
+                                    : 'Ninguna'
+                            )
+                        )
+                    )
+                )
+            );
+        };
+
+        // Componente Principal
+        const RugbyAnalysisApp = () => {
+            const [gameState, dispatch] = useReducer(gameReducer, initialGameState);
+            const [currentModule, setCurrentModule] = useState('dashboard');
+            const [userName, setUserName] = useState('');
+            const [isConnected, setIsConnected] = useState(false);
+
+            useEffect(() => {
+                if (!isConnected && userName) {
+                    dispatch({ type: 'ADD_USER', userName });
+                    setIsConnected(true);
+                }
+            }, [userName, isConnected]);
+
+            const modules = [
+                { id: 'dashboard', name: 'Dashboard', icon: BarChart3, component: CoachDashboard },
+                { id: 'kicks', name: 'Patadas', icon: Target, component: KickAnalysis }
+            ];
+
+            const currentModuleData = modules.find(m => m.id === currentModule);
+            const CurrentComponent = currentModuleData.component;
+
+            if (!userName) {
+                return React.createElement('div', { className: 'min-h-screen bg-gray-100 flex items-center justify-center p-4' },
+                    React.createElement('div', { className: 'bg-white p-8 rounded-lg shadow-lg max-w-sm w-full' },
+                        React.createElement('h2', { className: 'text-2xl font-bold mb-6 text-center' }, 'Rugby Analysis'),
+                        React.createElement('div', { className: 'space-y-4' },
+                            React.createElement('div', null,
+                                React.createElement('label', { className: 'block text-sm font-medium mb-2' }, 'Tu nombre/rol:'),
+                                React.createElement('input', {
+                                    type: 'text',
+                                    placeholder: 'Ej: Entrenador Scrum',
+                                    className: 'w-full p-3 border rounded-lg',
+                                    onKeyPress: (e) => {
+                                        if (e.key === 'Enter' && e.target.value.trim()) {
+                                            setUserName(e.target.value.trim());
+                                        }
+                                    }
+                                })
+                            ),
+                            React.createElement('button', {
+                                onClick: () => {
+                                    const input = document.querySelector('input');
+                                    if (input.value.trim()) {
+                                        setUserName(input.value.trim());
+                                    }
+                                },
+                                className: 'w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700'
+                            }, 'Conectar al Análisis')
+                        )
+                    )
+                );
+            }
+
+            return React.createElement('div', { className: 'min-h-screen bg-gray-100' },
+                React.createElement(AppHeader, {
+                    connectedUsers: gameState.connectedUsers,
+                    onResetGame: () => dispatch({ type: 'RESET_GAME' })
+                }),
+
+                React.createElement('nav', { className: 'bg-white shadow-sm sticky top-16 z-20' },
+                    React.createElement('div', { className: 'overflow-x-auto' },
+                        React.createElement('div', { className: 'flex space-x-1 px-4 py-2 min-w-max' },
+                            modules.map((module) => {
+                                const Icon = module.icon;
+                                return React.createElement('button', {
+                                    key: module.id,
+                                    onClick: () => setCurrentModule(module.id),
+                                    className: `flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                                        currentModule === module.id
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+                                    }`
+                                },
+                                    React.createElement(Icon, { size: 16 }),
+                                    React.createElement('span', { className: 'text-sm font-medium' }, module.name)
+                                );
+                            })
+                        )
+                    )
+                ),
+
+                React.createElement('main', { className: 'px-4 py-6 pb-20' },
+                    currentModule === 'dashboard' && React.createElement(CurrentComponent, { gameState }),
+                    currentModule === 'kicks' && React.createElement(CurrentComponent, { onAddKick: dispatch })
+                )
+            );
+        };
+
+        ReactDOM.render(React.createElement(RugbyAnalysisApp), document.getElementById('root'));
+    </script>
+</body>
+</html>
