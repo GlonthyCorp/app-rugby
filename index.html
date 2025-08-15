@@ -1,0 +1,1183 @@
+import React, { useState, useEffect, useReducer } from 'react';
+import { ChevronLeft, ChevronRight, Users, BarChart3, Timer, Target, Activity, TrendingUp, Undo2, UserPlus, Wifi, WifiOff } from 'lucide-react';
+
+// Estado inicial del partido
+const initialGameState = {
+  kicks: {
+    total: 0,
+    offensive: 0,
+    positional: 0,
+    staysIn: 0,
+    goesOut: 0,
+    cajon9: 0,
+    otherTypes: 0,
+    recovered: 0,
+    pressureGood: 0,
+    pressureBad: 0,
+    events: []
+  },
+  lineouts: {
+    own: { total: 0, won: 0, lost: 0 },
+    opponent: { total: 0, stolen: 0, complicated: 0 },
+    mauls: { effective: 0, ineffective: 0 },
+    catches: { effective: 0, ineffective: 0 },
+    events: []
+  },
+  scrums: {
+    own: { total: 0, positive: 0, negative: 0, goodUse: 0, badUse: 0 },
+    opponent: { total: 0, penalties: 0 },
+    penaltiesFor: 0,
+    penaltiesAgainst: 0,
+    events: []
+  },
+  attack: {
+    decisions: [],
+    executions: [],
+    runs: { total: 0, effective: 0 },
+    finalDecisions: { good: 0, regular: 0, bad: 0 },
+    events: []
+  },
+  players: Array.from({length: 23}, (_, i) => ({
+    number: i + 1,
+    active: true,
+    cards: 0,
+    injured: false
+  })),
+  history: [],
+  connectedUsers: ['Entrenador Principal']
+};
+
+// Reducer para manejar el estado del juego
+function gameReducer(state, action) {
+  const newState = { ...state };
+  const timestamp = new Date().toISOString();
+
+  switch (action.type) {
+    case 'ADD_KICK':
+      const kickEvent = {
+        id: Date.now(),
+        timestamp,
+        type: 'kick',
+        player: action.player,
+        data: {
+          kickType: action.kickType,
+          result: action.result,
+          specific: action.specific,
+          recovered: action.recovered,
+          pressure: action.pressure
+        }
+      };
+
+      newState.kicks = {
+        ...state.kicks,
+        total: state.kicks.total + 1,
+        [action.kickType]: state.kicks[action.kickType] + 1,
+        [action.result]: state.kicks[action.result] + 1,
+        [action.specific]: state.kicks[action.specific] + 1,
+        recovered: state.kicks.recovered + (action.recovered ? 1 : 0),
+        [action.pressure]: state.kicks[action.pressure] + 1,
+        events: [...state.kicks.events, kickEvent]
+      };
+
+      newState.history = [kickEvent, ...state.history].slice(0, 20);
+      return newState;
+
+    case 'ADD_LINEOUT':
+      const lineoutEvent = {
+        id: Date.now(),
+        timestamp,
+        type: 'lineout',
+        player: action.player,
+        data: {
+          team: action.team,
+          result: action.result
+        }
+      };
+
+      newState.lineouts = {
+        ...state.lineouts,
+        [action.team]: {
+          ...state.lineouts[action.team],
+          total: state.lineouts[action.team].total + 1,
+          [action.result]: state.lineouts[action.team][action.result] + 1
+        },
+        events: [...state.lineouts.events, lineoutEvent]
+      };
+
+      newState.history = [lineoutEvent, ...state.history].slice(0, 20);
+      return newState;
+
+    case 'ADD_SCRUM':
+      const scrumEvent = {
+        id: Date.now(),
+        timestamp,
+        type: 'scrum',
+        player: action.player,
+        data: {
+          team: action.team,
+          result: action.result
+        }
+      };
+
+      newState.scrums = {
+        ...state.scrums,
+        [action.team]: {
+          ...state.scrums[action.team],
+          total: state.scrums[action.team].total + 1,
+          [action.result]: state.scrums[action.team][action.result] + 1
+        },
+        events: [...state.scrums.events, scrumEvent]
+      };
+
+      newState.history = [scrumEvent, ...state.history].slice(0, 20);
+      return newState;
+
+    case 'ADD_ATTACK_RATING':
+      const attackEvent = {
+        id: Date.now(),
+        timestamp,
+        type: 'attack_rating',
+        player: action.player,
+        data: {
+          category: action.category,
+          rating: action.rating
+        }
+      };
+
+      newState.attack = {
+        ...state.attack,
+        [action.category]: [...state.attack[action.category], action.rating],
+        events: [...state.attack.events, attackEvent]
+      };
+
+      newState.history = [attackEvent, ...state.history].slice(0, 20);
+      return newState;
+
+    case 'ADD_RUN':
+      const runEvent = {
+        id: Date.now(),
+        timestamp,
+        type: 'run',
+        player: action.player,
+        data: {
+          effective: action.effective
+        }
+      };
+
+      newState.attack = {
+        ...state.attack,
+        runs: {
+          total: state.attack.runs.total + 1,
+          effective: state.attack.runs.effective + (action.effective ? 1 : 0)
+        },
+        events: [...state.attack.events, runEvent]
+      };
+
+      newState.history = [runEvent, ...state.history].slice(0, 20);
+      return newState;
+
+    case 'ADD_FINAL_DECISION':
+      const decisionEvent = {
+        id: Date.now(),
+        timestamp,
+        type: 'final_decision',
+        player: action.player,
+        data: {
+          quality: action.quality
+        }
+      };
+
+      newState.attack = {
+        ...state.attack,
+        finalDecisions: {
+          ...state.attack.finalDecisions,
+          [action.quality]: state.attack.finalDecisions[action.quality] + 1
+        },
+        events: [...state.attack.events, decisionEvent]
+      };
+
+      newState.history = [decisionEvent, ...state.history].slice(0, 20);
+      return newState;
+
+    case 'UNDO_LAST_ACTION':
+      if (state.history.length === 0) return state;
+      
+      const lastEvent = state.history[0];
+      const newHistory = state.history.slice(1);
+      
+      // Revertir el último evento basado en su tipo
+      switch (lastEvent.type) {
+        case 'kick':
+          newState.kicks = {
+            ...state.kicks,
+            total: state.kicks.total - 1,
+            [lastEvent.data.kickType]: state.kicks[lastEvent.data.kickType] - 1,
+            [lastEvent.data.result]: state.kicks[lastEvent.data.result] - 1,
+            [lastEvent.data.specific]: state.kicks[lastEvent.data.specific] - 1,
+            recovered: state.kicks.recovered - (lastEvent.data.recovered ? 1 : 0),
+            [lastEvent.data.pressure]: state.kicks[lastEvent.data.pressure] - 1,
+            events: state.kicks.events.filter(e => e.id !== lastEvent.id)
+          };
+          break;
+        // Agregar casos para otros tipos de eventos...
+      }
+
+      newState.history = newHistory;
+      return newState;
+
+    case 'ADD_USER':
+      newState.connectedUsers = [...state.connectedUsers, action.userName];
+      return newState;
+
+    case 'REMOVE_USER':
+      newState.connectedUsers = state.connectedUsers.filter(user => user !== action.userName);
+      return newState;
+
+    case 'UPDATE_PLAYER':
+      newState.players = state.players.map(player => 
+        player.number === action.playerNumber 
+          ? { ...player, ...action.updates }
+          : player
+      );
+      return newState;
+
+    case 'RESET_GAME':
+      return initialGameState;
+
+    default:
+      return state;
+  }
+}
+
+// Componente Selector de Jugadores
+const PlayerSelector = ({ selectedPlayer, onPlayerSelect, compact = false }) => {
+  const [showSelector, setShowSelector] = useState(false);
+
+  if (compact) {
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setShowSelector(!showSelector)}
+          className={`w-16 h-16 rounded-full text-white font-bold text-lg ${
+            selectedPlayer ? 'bg-blue-600' : 'bg-gray-400'
+          } border-2 border-white shadow-lg`}
+        >
+          {selectedPlayer || '?'}
+        </button>
+        
+        {showSelector && (
+          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white border-2 border-gray-200 rounded-lg shadow-xl p-4 z-50">
+            <div className="grid grid-cols-5 gap-2 max-h-60 overflow-y-auto">
+              {Array.from({length: 23}, (_, i) => i + 1).map(num => (
+                <button
+                  key={num}
+                  onClick={() => {
+                    onPlayerSelect(num);
+                    setShowSelector(false);
+                  }}
+                  className="w-10 h-10 bg-blue-100 hover:bg-blue-200 rounded-full text-sm font-semibold"
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-4 rounded-lg shadow-sm border">
+      <h3 className="font-semibold mb-3 text-center">Seleccionar Jugador</h3>
+      <div className="grid grid-cols-5 gap-2">
+        {Array.from({length: 23}, (_, i) => i + 1).map(num => (
+          <button
+            key={num}
+            onClick={() => onPlayerSelect(num)}
+            className={`w-12 h-12 rounded-full text-sm font-semibold transition-colors ${
+              selectedPlayer === num 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            {num}
+          </button>
+        ))}
+      </div>
+      {selectedPlayer && (
+        <div className="mt-3 text-center">
+          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+            Jugador #{selectedPlayer} seleccionado
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Componente para calificación por estrellas (optimizado para móvil)
+const StarRating = ({ rating, onRate, label }) => {
+  return (
+    <div className="flex flex-col items-center space-y-3">
+      <span className="text-base font-medium text-gray-700">{label}</span>
+      <div className="flex space-x-2">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            onClick={() => onRate(star)}
+            className={`text-3xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400 transition-colors active:scale-110`}
+          >
+            ⭐
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Historial de eventos (para corrección de errores)
+const EventHistory = ({ history, onUndo }) => {
+  const [showHistory, setShowHistory] = useState(false);
+
+  if (!showHistory) {
+    return (
+      <button
+        onClick={() => setShowHistory(true)}
+        className="fixed bottom-6 right-6 bg-gray-600 text-white p-3 rounded-full shadow-lg z-40"
+      >
+        <Timer size={24} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-6 right-6 bg-white border-2 border-gray-200 rounded-lg shadow-xl p-4 z-50 max-w-sm">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-semibold">Últimos eventos</h3>
+        <button
+          onClick={() => setShowHistory(false)}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+      </div>
+      
+      <div className="max-h-60 overflow-y-auto space-y-2">
+        {history.slice(0, 10).map((event, index) => (
+          <div key={event.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
+            <div>
+              <span className="font-medium">#{event.player}</span>
+              <span className="text-gray-600 ml-2">{event.type}</span>
+            </div>
+            {index === 0 && (
+              <button
+                onClick={onUndo}
+                className="text-red-600 hover:text-red-800"
+              >
+                <Undo2 size={16} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Header con indicador de usuarios conectados
+const AppHeader = ({ connectedUsers, onResetGame }) => {
+  const [showUsers, setShowUsers] = useState(false);
+
+  return (
+    <header className="bg-white shadow-sm border-b sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg md:text-2xl font-bold text-gray-900">
+            Rugby Analysis
+          </h1>
+          
+          <div className="flex items-center space-x-3">
+            {/* Indicador de usuarios conectados */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUsers(!showUsers)}
+                className="flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
+              >
+                <Wifi size={16} />
+                <span>{connectedUsers.length}</span>
+              </button>
+              
+              {showUsers && (
+                <div className="absolute top-full right-0 mt-2 bg-white border rounded-lg shadow-lg p-3 min-w-48">
+                  <h4 className="font-semibold mb-2">Usuarios conectados:</h4>
+                  {connectedUsers.map((user, index) => (
+                    <div key={index} className="text-sm text-gray-600 py-1">
+                      • {user}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={onResetGame}
+              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+// Módulo 1: Analista de Juego con el Pie (Mejorado)
+const KickAnalysis = ({ onAddKick }) => {
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [selectedKickType, setSelectedKickType] = useState('');
+  const [selectedResult, setSelectedResult] = useState('');
+  const [selectedSpecific, setSelectedSpecific] = useState('');
+  const [selectedPressure, setSelectedPressure] = useState('');
+
+  const handleAddKick = (recovery = null) => {
+    if (selectedPlayer && selectedKickType && selectedResult && selectedSpecific && selectedPressure) {
+      onAddKick({
+        type: 'ADD_KICK',
+        player: selectedPlayer,
+        kickType: selectedKickType,
+        result: selectedResult,
+        specific: selectedSpecific,
+        recovered: recovery,
+        pressure: selectedPressure
+      });
+
+      // Reset selections
+      setSelectedKickType('');
+      setSelectedResult('');
+      setSelectedSpecific('');
+      setSelectedPressure('');
+    }
+  };
+
+  const canSubmit = selectedPlayer && selectedKickType && selectedResult && selectedSpecific && selectedPressure;
+
+  return (
+    <div className="space-y-6">
+      {/* Selector de Jugador */}
+      <PlayerSelector 
+        selectedPlayer={selectedPlayer} 
+        onPlayerSelect={setSelectedPlayer}
+      />
+
+      <div className="grid grid-cols-1 gap-6">
+        {/* Tipo de Patada */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-3 text-center">Tipo de Patada</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setSelectedKickType('offensive')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedKickType === 'offensive' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">⚡</div>
+              <div className="text-sm font-medium">Ofensiva</div>
+            </button>
+            <button
+              onClick={() => setSelectedKickType('positional')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedKickType === 'positional' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">🎯</div>
+              <div className="text-sm font-medium">Posicional</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Resultado del Balón */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-3 text-center">Resultado del Balón</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setSelectedResult('staysIn')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedResult === 'staysIn' ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">✅</div>
+              <div className="text-sm font-medium">Queda Adentro</div>
+            </button>
+            <button
+              onClick={() => setSelectedResult('goesOut')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedResult === 'goesOut' ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">↗️</div>
+              <div className="text-sm font-medium">Sale del Campo</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Tipo Específico */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-3 text-center">Tipo Específico</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setSelectedSpecific('cajon9')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedSpecific === 'cajon9' ? 'bg-purple-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">9️⃣</div>
+              <div className="text-sm font-medium">Cajón del 9</div>
+            </button>
+            <button
+              onClick={() => setSelectedSpecific('otherTypes')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedSpecific === 'otherTypes' ? 'bg-purple-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">🦶</div>
+              <div className="text-sm font-medium">Otro Tipo</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Presión */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-3 text-center">Presión</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setSelectedPressure('pressureGood')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedPressure === 'pressureGood' ? 'bg-orange-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">👍</div>
+              <div className="text-sm font-medium">Presionamos Bien</div>
+            </button>
+            <button
+              onClick={() => setSelectedPressure('pressureBad')}
+              className={`p-4 rounded-lg text-center transition-colors ${
+                selectedPressure === 'pressureBad' ? 'bg-orange-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              <div className="text-lg">👎</div>
+              <div className="text-sm font-medium">Presionamos Mal</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Botones de Acción */}
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => handleAddKick(true)}
+          disabled={!canSubmit}
+          className="p-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-center"
+        >
+          <div className="text-lg">✅</div>
+          <div className="text-sm font-medium">Recuperamos</div>
+        </button>
+        <button
+          onClick={() => handleAddKick(false)}
+          disabled={!canSubmit}
+          className="p-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-center"
+        >
+          <div className="text-lg">❌</div>
+          <div className="text-sm font-medium">No Recuperamos</div>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Módulo 2: Analista de Lineouts y Salidas (Mejorado)
+const LineoutAnalysis = ({ onAddLineout }) => {
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  const handleLineoutAction = (team, result) => {
+    if (selectedPlayer) {
+      onAddLineout({
+        type: 'ADD_LINEOUT',
+        player: selectedPlayer,
+        team,
+        result
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Selector de Jugador */}
+      <PlayerSelector 
+        selectedPlayer={selectedPlayer} 
+        onPlayerSelect={setSelectedPlayer}
+      />
+
+      <div className="grid grid-cols-1 gap-6">
+        {/* Lineouts Propios */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-4 text-center text-green-800">Lineouts Propios</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleLineoutAction('own', 'won')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-green-100 hover:bg-green-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">✅</div>
+              <div className="text-sm font-medium">Ganado</div>
+            </button>
+            <button
+              onClick={() => handleLineoutAction('own', 'lost')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-red-100 hover:bg-red-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">❌</div>
+              <div className="text-sm font-medium">Perdido</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Lineouts Rivales */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-4 text-center text-blue-800">Lineouts Rivales</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleLineoutAction('opponent', 'stolen')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-blue-100 hover:bg-blue-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">🏆</div>
+              <div className="text-sm font-medium">Robado</div>
+            </button>
+            <button
+              onClick={() => handleLineoutAction('opponent', 'complicated')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-yellow-100 hover:bg-yellow-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">⚠️</div>
+              <div className="text-sm font-medium">Complicado</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Módulo 3: Analista de Scrum (Mejorado)
+const ScrumAnalysis = ({ onAddScrum }) => {
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  const handleScrumAction = (team, result) => {
+    if (selectedPlayer) {
+      onAddScrum({
+        type: 'ADD_SCRUM',
+        player: selectedPlayer,
+        team,
+        result
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Selector de Jugador */}
+      <PlayerSelector 
+        selectedPlayer={selectedPlayer} 
+        onPlayerSelect={setSelectedPlayer}
+      />
+
+      <div className="grid grid-cols-1 gap-6">
+        {/* Scrums Propios */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-4 text-center text-red-800">Scrums Propios</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleScrumAction('own', 'positive')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-green-100 hover:bg-green-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">✅</div>
+              <div className="text-sm font-medium">Positivo</div>
+            </button>
+            <button
+              onClick={() => handleScrumAction('own', 'negative')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-red-100 hover:bg-red-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">❌</div>
+              <div className="text-sm font-medium">Negativo</div>
+            </button>
+            <button
+              onClick={() => handleScrumAction('own', 'goodUse')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-blue-100 hover:bg-blue-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">🎯</div>
+              <div className="text-sm font-medium">Buen Uso</div>
+            </button>
+            <button
+              onClick={() => handleScrumAction('own', 'badUse')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-orange-100 hover:bg-orange-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">⚠️</div>
+              <div className="text-sm font-medium">Mal Uso</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Scrums Rivales */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-4 text-center text-purple-800">Scrums Rivales</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleScrumAction('opponent', 'total')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">📊</div>
+              <div className="text-sm font-medium">Scrum Rival</div>
+            </button>
+            <button
+              onClick={() => handleScrumAction('opponent', 'penalties')}
+              disabled={!selectedPlayer}
+              className="p-4 bg-yellow-100 hover:bg-yellow-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">🚨</div>
+              <div className="text-sm font-medium">Penal Ganado</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Módulo 4: Analista de Ataque (Mejorado)
+const AttackAnalysis = ({ onAddAttack, gameState }) => {
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [tacticalDecision, setTacticalDecision] = useState(0);
+  const [executionQuality, setExecutionQuality] = useState(0);
+
+  const handleAddRating = () => {
+    if (selectedPlayer && (tacticalDecision > 0 || executionQuality > 0)) {
+      if (tacticalDecision > 0) {
+        onAddAttack({ 
+          type: 'ADD_ATTACK_RATING', 
+          player: selectedPlayer,
+          category: 'decisions', 
+          rating: tacticalDecision 
+        });
+      }
+      if (executionQuality > 0) {
+        onAddAttack({ 
+          type: 'ADD_ATTACK_RATING', 
+          player: selectedPlayer,
+          category: 'executions', 
+          rating: executionQuality 
+        });
+      }
+      setTacticalDecision(0);
+      setExecutionQuality(0);
+    }
+  };
+
+  const handleRunAction = (effective) => {
+    if (selectedPlayer) {
+      onAddAttack({
+        type: 'ADD_RUN',
+        player: selectedPlayer,
+        effective
+      });
+    }
+  };
+
+  const handleFinalDecision = (quality) => {
+    if (selectedPlayer) {
+      onAddAttack({
+        type: 'ADD_FINAL_DECISION',
+        player: selectedPlayer,
+        quality
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Selector de Jugador */}
+      <PlayerSelector 
+        selectedPlayer={selectedPlayer} 
+        onPlayerSelect={setSelectedPlayer}
+      />
+
+      <div className="space-y-6">
+        {/* Calificaciones */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="space-y-6">
+            <StarRating 
+              rating={tacticalDecision}
+              onRate={setTacticalDecision}
+              label="Decisión Táctica"
+            />
+            <StarRating 
+              rating={executionQuality}
+              onRate={setExecutionQuality}
+              label="Calidad Ejecución"
+            />
+            <button
+              onClick={handleAddRating}
+              disabled={!selectedPlayer || (tacticalDecision === 0 && executionQuality === 0)}
+              className="w-full p-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 font-medium"
+            >
+              Registrar Calificaciones
+            </button>
+          </div>
+        </div>
+
+        {/* Carreras */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-4 text-center">Carreras</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleRunAction(true)}
+              disabled={!selectedPlayer}
+              className="p-4 bg-green-100 hover:bg-green-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">✅</div>
+              <div className="text-sm font-medium">Efectiva</div>
+            </button>
+            <button
+              onClick={() => handleRunAction(false)}
+              disabled={!selectedPlayer}
+              className="p-4 bg-red-100 hover:bg-red-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-2xl">❌</div>
+              <div className="text-sm font-medium">Inefectiva</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Decisión Final */}
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h3 className="font-semibold mb-4 text-center">Decisión Final</h3>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => handleFinalDecision('good')}
+              disabled={!selectedPlayer}
+              className="p-3 bg-green-100 hover:bg-green-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-lg">😊</div>
+              <div className="text-xs font-medium">Buena</div>
+            </button>
+            <button
+              onClick={() => handleFinalDecision('regular')}
+              disabled={!selectedPlayer}
+              className="p-3 bg-yellow-100 hover:bg-yellow-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-lg">😐</div>
+              <div className="text-xs font-medium">Regular</div>
+            </button>
+            <button
+              onClick={() => handleFinalDecision('bad')}
+              disabled={!selectedPlayer}
+              className="p-3 bg-red-100 hover:bg-red-200 disabled:bg-gray-100 rounded-lg text-center transition-colors"
+            >
+              <div className="text-lg">😞</div>
+              <div className="text-xs font-medium">Mala</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Dashboard Head Coach (Mejorado)
+const CoachDashboard = ({ gameState }) => {
+  const kickEffectiveness = gameState.kicks.total > 0 ? (gameState.kicks.staysIn / gameState.kicks.total * 100).toFixed(1) : 0;
+  const kickRecovery = gameState.kicks.total > 0 ? (gameState.kicks.recovered / gameState.kicks.total * 100).toFixed(1) : 0;
+  const pressureEffectiveness = gameState.kicks.total > 0 ? (gameState.kicks.pressureGood / gameState.kicks.total * 100).toFixed(1) : 0;
+  
+  const lineoutEffectiveness = gameState.lineouts.own.total > 0 ? (gameState.lineouts.own.won / gameState.lineouts.own.total * 100).toFixed(1) : 0;
+  
+  const scrumEffectiveness = gameState.scrums.own.total > 0 ? (gameState.scrums.own.positive / gameState.scrums.own.total * 100).toFixed(1) : 0;
+  
+  const avgDecision = gameState.attack.decisions.length > 0 ? (gameState.attack.decisions.reduce((a, b) => a + b, 0) / gameState.attack.decisions.length).toFixed(1) : 0;
+  const avgExecution = gameState.attack.executions.length > 0 ? (gameState.attack.executions.reduce((a, b) => a + b, 0) / gameState.attack.executions.length).toFixed(1) : 0;
+  
+  const runEffectiveness = gameState.attack.runs.total > 0 ? (gameState.attack.runs.effective / gameState.attack.runs.total * 100).toFixed(1) : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <h2 className="text-2xl font-bold mb-4 text-center text-gray-800 flex items-center justify-center">
+          <BarChart3 className="mr-2" />
+          Dashboard Head Coach
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {/* Juego con el Pie */}
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <h3 className="text-lg font-bold mb-3 text-blue-800 flex items-center">
+            🦶 JUEGO CON EL PIE
+          </h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Total Patadas:</span>
+                <span className="font-bold">{gameState.kicks.total}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Ofensivas:</span>
+                <span>{gameState.kicks.offensive} ({gameState.kicks.total > 0 ? (gameState.kicks.offensive / gameState.kicks.total * 100).toFixed(0) : 0}%)</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Posicionales:</span>
+                <span>{gameState.kicks.positional} ({gameState.kicks.total > 0 ? (gameState.kicks.positional / gameState.kicks.total * 100).toFixed(0) : 0}%)</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Efectividad:</span>
+                <span className="font-bold">{kickEffectiveness}%</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Recuperación:</span>
+                <span className="font-bold">{kickRecovery}%</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Presión:</span>
+                <span className="font-bold">{pressureEffectiveness}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lineouts */}
+        <div className="bg-green-50 p-4 rounded-lg">
+          <h3 className="text-lg font-bold mb-3 text-green-800">📏 LINEOUTS</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Propios:</span>
+                <span className="font-bold">{gameState.lineouts.own.won}/{gameState.lineouts.own.total}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Efectividad:</span>
+                <span className="font-bold">{lineoutEffectiveness}%</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Rivales:</span>
+                <span className="font-bold">{gameState.lineouts.opponent.total}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Robados:</span>
+                <span>{gameState.lineouts.opponent.stolen}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scrums */}
+        <div className="bg-red-50 p-4 rounded-lg">
+          <h3 className="text-lg font-bold mb-3 text-red-800">🏈 SCRUMS</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Propios:</span>
+                <span className="font-bold">{gameState.scrums.own.positive}/{gameState.scrums.own.total}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Efectividad:</span>
+                <span className="font-bold">{scrumEffectiveness}%</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Buen Uso:</span>
+                <span>{gameState.scrums.own.goodUse}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Penales:</span>
+                <span>{gameState.scrums.opponent.penalties}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Ataque */}
+        <div className="bg-orange-50 p-4 rounded-lg">
+          <h3 className="text-lg font-bold mb-3 text-orange-800">⚡ ATAQUE</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Promedio Decisiones:</span>
+                <span className="font-bold">{avgDecision}/5</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Promedio Ejecución:</span>
+                <span className="font-bold">{avgExecution}/5</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span>Carreras:</span>
+                <span className="font-bold">{gameState.attack.runs.total}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Efectividad:</span>
+                <span className="font-bold">{runEffectiveness}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumen rápido */}
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-bold mb-3 text-gray-800">🎯 RESUMEN RÁPIDO</h3>
+        <div className="grid grid-cols-1 gap-2 text-sm">
+          <div className="flex justify-between">
+            <span>Total eventos registrados:</span>
+            <span className="font-bold">{gameState.history.length}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Última acción:</span>
+            <span className="font-bold">
+              {gameState.history.length > 0 
+                ? `#${gameState.history[0].player} - ${gameState.history[0].type}`
+                : 'Ninguna'
+              }
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente Principal
+const RugbyAnalysisApp = () => {
+  const [gameState, dispatch] = useReducer(gameReducer, initialGameState);
+  const [currentModule, setCurrentModule] = useState('dashboard');
+  const [userName, setUserName] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Simular conexión de usuario
+  useEffect(() => {
+    if (!isConnected && userName) {
+      dispatch({ type: 'ADD_USER', userName });
+      setIsConnected(true);
+    }
+  }, [userName, isConnected]);
+
+  const modules = [
+    { id: 'dashboard', name: 'Dashboard', icon: BarChart3, component: CoachDashboard },
+    { id: 'kicks', name: 'Patadas', icon: Target, component: KickAnalysis },
+    { id: 'lineouts', name: 'Lineouts', icon: Activity, component: LineoutAnalysis },
+    { id: 'scrums', name: 'Scrums', icon: Users, component: ScrumAnalysis },
+    { id: 'attack', name: 'Ataque', icon: TrendingUp, component: AttackAnalysis }
+  ];
+
+  const currentModuleData = modules.find(m => m.id === currentModule);
+  const CurrentComponent = currentModuleData.component;
+
+  // Modal de login simple
+  if (!userName) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-sm w-full">
+          <h2 className="text-2xl font-bold mb-6 text-center">Rugby Analysis</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Tu nombre/rol:</label>
+              <input
+                type="text"
+                placeholder="Ej: Entrenador Scrum"
+                className="w-full p-3 border rounded-lg"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && e.target.value.trim()) {
+                    setUserName(e.target.value.trim());
+                  }
+                }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                const input = document.querySelector('input');
+                if (input.value.trim()) {
+                  setUserName(input.value.trim());
+                }
+              }}
+              className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Conectar al Análisis
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <AppHeader 
+        connectedUsers={gameState.connectedUsers}
+        onResetGame={() => dispatch({ type: 'RESET_GAME' })}
+      />
+
+      {/* Navigation */}
+      <nav className="bg-white shadow-sm sticky top-16 z-20">
+        <div className="overflow-x-auto">
+          <div className="flex space-x-1 px-4 py-2 min-w-max">
+            {modules.map((module) => {
+              const Icon = module.icon;
+              return (
+                <button
+                  key={module.id}
+                  onClick={() => setCurrentModule(module.id)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                    currentModule === module.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span className="text-sm font-medium">{module.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="px-4 py-6 pb-20">
+        {currentModule === 'dashboard' && <CurrentComponent gameState={gameState} />}
+        {currentModule === 'kicks' && <CurrentComponent onAddKick={dispatch} />}
+        {currentModule === 'lineouts' && <CurrentComponent onAddLineout={dispatch} />}
+        {currentModule === 'scrums' && <CurrentComponent onAddScrum={dispatch} />}
+        {currentModule === 'attack' && <CurrentComponent onAddAttack={dispatch} gameState={gameState} />}
+      </main>
+
+      {/* Event History */}
+      <EventHistory 
+        history={gameState.history}
+        onUndo={() => dispatch({ type: 'UNDO_LAST_ACTION' })}
+      />
+    </div>
+  );
+};
+
+export default RugbyAnalysisApp;
